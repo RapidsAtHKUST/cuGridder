@@ -1,0 +1,10 @@
+.vscode/
+.DS_Store
+bin
+build
+*.o
+python/curagridder/__pycache__
+lib
+lib-static
+*.so
+build
