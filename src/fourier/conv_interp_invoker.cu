@@ -25,6 +25,7 @@ Issue: Revise for batch
 #include "conv.h"
 #include "interp.h"
 #include "utils.h"
+#include "common_utils.h"
 
 int get_num_cells(PCS ms, conv_opts copts)
 // type 1 & 2 recipe for how to set 1d size of upsampled array, nf, given opts
@@ -116,12 +117,6 @@ int setup_conv_opts(conv_opts &opts, PCS eps, PCS upsampfac, int pirange, int di
   return ier;
 }
 
-__inline__ void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int hive_count_size, int hivesize){
-  int blocksize = 256;
-  counting_hive<<<(hive_count_size-1)/blocksize+1,blocksize>>>(hive_count,histo_count,hive_count_size,hivesize);
-  checkCudaErrors(cudaDeviceSynchronize());
-}
-
 int bin_mapping(CURAFFT_PLAN *plan){
   // +++++++ method and hivesize /// later support other dim 1,2 +++ dim condition 
   if(plan->dim==3){
@@ -137,7 +132,7 @@ int bin_mapping(CURAFFT_PLAN *plan){
     checkCudaErrors(cudaMalloc((void **)&d_w_out,sizeof(PCS)*M));
     checkCudaErrors(cudaMalloc((void **)&d_c_out,sizeof(CUCPX)*M));
     checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin,sizeof(int)*M));
-    if(plan->opts.gpu_gridder_method==2){ // sufficient memory
+    if(plan->opts.gpu_gridder_method==2||plan->opts.gpu_gridder_method==3){ // sufficient memory // a litter messy
       int nhive[3];
       nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
       nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
@@ -271,7 +266,7 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
 		// milliseconds,plan->opts.gpu_kerevalmeth);
     
   }
-  else if (method==2){
+  else if (method==2 || method==3){
     block.x = plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2];
     int nhive[3];
     nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
@@ -279,12 +274,16 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
     nhive[2] = (nf3-1)/plan->hivesize[2] + 1;
     grid.x = nhive[0] * nhive[1] * nhive[2];
     // printf("blocksize %d, grid %d %d %d\n", block.x, nhive[0], nhive[1], nhive[2]);
-    
+    if(method==2)
     conv_3d_outputdriven<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
-    
-    
+    if(method==3){
+      conv_3d_outputdriven_shared_sparse<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
+                                          nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
+                                          nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
+      printf("correct direction\n");
+    }
     
     cudaError_t err = cudaGetLastError();
 

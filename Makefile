@@ -17,7 +17,7 @@ NVCCFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) -Wno-deprecated-gpu-targets 
 
 
 #NVCCFLAGS+= -DINFO -DDEBUG -DRESULT -DTIME
-#NVCCFLAGS+= -DDEBUG
+NVCCFLAGS+= -DTIME
 
 #set your cuda path
 CUDA_ROOT := /usr/local/cuda
@@ -168,9 +168,17 @@ checkconv: convtest
 	@echo "conv 2D.............................................."
 	bin/conv_2d_test 0 5 5
 	@echo "conv 3D.............................................."
-	bin/conv_3d_test 0 128 128 128 10000;
+	bin/conv_3d_test 0 32 32 32 100;
 # @echo "conv 3D.............................................."
-# bin/conv_3d_test 0 512 512 512 134217728;
+# bin/conv_3d_test 0 4096 4096 12 16777216;
+# @echo "conv 3D.............................................."
+# bin/conv_3d_test 0 128 128 128 2097152;
+# @echo "conv 3D.............................................."
+# bin/conv_3d_test 0 256 256 128 8388608;
+	@echo "conv 3D.............................................."
+	bin/conv_3d_test 0 256 256 512 33554432;
+	@echo "conv 3D.............................................."
+	bin/conv_3d_test 0 512 512 512 134217728;
 
 # @echo "conv 3D.............................................."
 # bin/conv_3d_test 0 2048 2048 8 4194304;
@@ -178,8 +186,6 @@ checkconv: convtest
 # bin/conv_3d_test 0 2048 2048 16 4194304;
 # @echo "conv 3D.............................................."
 # bin/conv_3d_test 0 2048 2048 32 4194304;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 0 4096 4096 8 16777216;
 # @echo "conv 3D.............................................."
 # bin/conv_3d_test 0 4096 4096 12 16777216;
 
@@ -191,7 +197,7 @@ checkutils: utiltest
 checkwst: w_s_test
 
 	@echo "W stacking checking..."
-	bin/w_s_gridder_test 2 1 4000 4000 1000000 10
+	bin/w_s_gridder_test 3 1 4096 4096 100000000 10
 	bin/w_s_degridder_test 0 1 100 100 10000 10
 # bin/w_s_test 0 1 5000 5000 50000000 10
 

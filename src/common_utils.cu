@@ -119,3 +119,34 @@ void show_mem_usage()
   printf("GPU memory usage: used = %f, free = %f MB, total = %f MB\n",
          used_db / 1024.0 / 1024.0, free_db / 1024.0 / 1024.0, total_db / 1024.0 / 1024.0);
 }
+
+
+__global__ void counting_hive(int *hive_count, int *histo_count, unsigned long int M, int hivesize){
+	unsigned int idx;
+	for(idx = blockIdx.x * blockDim.x + threadIdx.x; idx < M; idx += gridDim.x * blockDim.x){
+		hive_count[idx] = histo_count[idx*hivesize];
+		// printf("%d, %d\n",idx, hive_count[idx]);
+	}
+}
+
+void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int hive_count_size, int hivesize){
+  int blocksize = 256;
+  counting_hive<<<(hive_count_size-1)/blocksize+1,blocksize>>>(hive_count,histo_count,hive_count_size,hivesize);
+  checkCudaErrors(cudaDeviceSynchronize());
+}
+
+void prefix_scan(int *d_arr, int *d_res, unsigned long int n, int flag)
+{
+  /*
+    n - number of elements
+    flag - 1 inclusive, 0 exclusive
+    thrust::inclusive_scan(d_arr, d_arr + n, d_res);
+  */
+  thrust::device_ptr<int> d_ptr(d_arr); // not convert
+  thrust::device_ptr<int> d_result(d_res);
+
+  if (flag)
+    thrust::inclusive_scan(d_ptr, d_ptr + n, d_result);
+  else
+    thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
+}

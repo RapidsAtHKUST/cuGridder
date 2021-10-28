@@ -14,6 +14,7 @@
 //#include <thrust/extrema.h>
 #include "conv.h"
 #define SHARED_SIZE_3D_1 512
+#define SHARED_SIZE_3D_HIVE 1024
 
 static __inline__ __device__ void kervalue_evaluate(PCS &ker, const PCS x, const double kw, const double es_c,
 												 const double es_beta)
@@ -33,11 +34,18 @@ static __inline__ __device__ void val_kernel_vec(PCS *ker, const PCS x, const do
 	}
 }
 
-__global__ void counting_hive(int *hive_count, int *histo_count, unsigned long int M, int hivesize){
-	unsigned int idx;
-	for(idx = blockIdx.x * blockDim.x + threadIdx.x; idx < M; idx += gridDim.x * blockDim.x){
-		hive_count[idx] = histo_count[idx*hivesize];
-		// printf("%d, %d\n",idx, hive_count[idx]);
+static __inline__ __device__
+void eval_kernel_vec_Horner(PCS *ker, const PCS x, const int w,
+	const double upsampfac)
+	/* Fill ker[] with Horner piecewise poly approx to [-w/2,w/2] ES kernel eval at
+	   x_j = x + j,  for j=0,..,w-1.  Thus x in [-w/2,-w/2+1].   w is aka ns.
+	   This is the current evaluation method, since it's faster (except i7 w=16).
+	   Two upsampfacs implemented. Params must match ref formula. Barnett 4/24/18 */
+{
+	PCS z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
+	// insert the auto-generated code which expects z, w args, writes to ker...
+	if (upsampfac==2.0) {     // floating point equality is fine here
+#include "../../contrib/ker_horner_allw_loop.c"
 	}
 }
 
@@ -290,16 +298,16 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 					
 
 					//if(cur_hive_idx>=nhive_x*nhive_y*nhive_z||cur_hive_idx<0)printf("%d,%d,%d,%d,%d ",cur_hive_idx, hive_x,hive_y, hive_z,flag);
-					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ // here problem
+					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
 						// kernel evaluation
 						PCS ker;
 						PCS kervalue = 1.0;
 
-						PCS temp = SHIFT_RESCALE(x[k], nf1, pirange); //save
-						temp = abs(temp-bin_x);
+						PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
+						temp1 = abs(temp1-bin_x);
 						//++++ break if not in range
-						if(temp>nf1/2.0)temp = nf1 - temp;
-						if(abs(temp)>ns/2.0)continue; 
+						if(temp1>nf1/2.0)temp1 = nf1 - temp1;
+						if(abs(temp1)>ns/2.0)continue; 
 
 						PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
 						temp2 = abs(temp2-bin_y);
@@ -311,14 +319,15 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
 						if(abs(temp3)>ns/2.0)continue;
 						// if(outidx==0)printf("%lf,%lf,%lf,%lf\n",temp,temp2,temp3,c[k].x);
-
-						kervalue_evaluate(ker, temp, ns, es_c, es_beta);
+						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
+						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
+						kervalue = kervalue * ker;
+						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
+						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 
-						kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
-						kervalue = kervalue * ker;
-
-						kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
+						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
+						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 						// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
 						
@@ -334,13 +343,11 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 	}
 }
 
-
-
-__global__ void conv_3d_outputdriven_shared(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+__global__ void conv_3d_outputdriven_shared(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, unsigned short int *n_share, const int ns, int nf1, int nf2,
 	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
 	/*
-		blocksize = 8*8*8 if change may need to revise
-		another method also load intput into shared memroy by multi times, currently just load output to sharedmem
+		blocksize = 8*8*8 if change may need to revise,,,,,, DO NOT USE HIVE
+		another method also load intput into shared memroy by multi times
 
 		remove some variable or put to constant memory remove nbin
 	*/
@@ -349,20 +356,143 @@ __global__ void conv_3d_outputdriven_shared(PCS *x, PCS *y, PCS *z, CUCPX *c, CU
 	unsigned long int M = nbin_x; // the threads are padded
 	M *= nbin_y;
 	M *= nbin_z;
-	__shared__ CUCPX sh_fw[SHARED_SIZE_3D_1];
+	
 	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
 	{
 		int hive_x, hive_y, hive_z;
 		unsigned long int outidx;
 		// int bin_idx;
 		// load to shared memory __synchronize
+		// extern __shared__ CUCPX sh_fw[];
+		__shared__ PCS sh_x[SHARED_SIZE_3D_HIVE];
+		__shared__ PCS sh_y[SHARED_SIZE_3D_HIVE];
+		__shared__ PCS sh_z[SHARED_SIZE_3D_HIVE];
+		__shared__ CUCPX sh_fw[SHARED_SIZE_3D_HIVE];
+
+		int cur_hive_idx = blockIdx.x; // current hive idx
+
+		hive_x = cur_hive_idx % nhive_x;
+		hive_y = cur_hive_idx / nhive_x % nhive_y;
+		hive_z = cur_hive_idx / (nhive_x*nhive_y);
+
+		// bin_idx = threadIdx.x % (nbin_x / hive_x) + threadIdx.x / (nbin_x / hive_x) % (nbin_y / hive_y) + threadIdx.x;
+		// idx in hive + hive_x * hivesize_x
+		int bin_x = threadIdx.x % (nbin_x / nhive_x) + hive_x * (nbin_x / nhive_x);
+		int bin_y = threadIdx.x / (nbin_x / nhive_x) % (nbin_y / nhive_y) + hive_y * (nbin_y / nhive_y);
+		int bin_z = threadIdx.x / ((nbin_x / nhive_x) * (nbin_y / nhive_y)) + hive_z * (nbin_z / nhive_z);
+		outidx = nf1*nf2;
+		outidx *= bin_z;
+		outidx += bin_x + bin_y * nf1;
 		
+		int flag = 1;
+		int cur_hive_x;
+		int cur_hive_y;
+		int cur_hive_z; 
+		// start_hive_idx[1] = cur_hive_idx - nhive_x - 1;
+		// start_hive_idx[2] = start_hive_idx[1] + nhive_x*nhive_y;
+		// start_hive_idx[0] = start_hive_idx[1] - nhive_x*nhive_y; 
 		
-		
-		sh_fw[threadIdx.x].x = 0;
-		sh_fw[threadIdx.x].y = 0;
-		//__syncthreads();
-		
+		int hive_index = 0;
+		for(int start_s=0; start_s<n_share[blockIdx.x]; start_s++){
+			// load uvw and fw into shared memory
+			// one hive by one hive
+
+
+		} // not the last
+
+		if(bin_x<nf1&&bin_y<nf2&&bin_z<nf3){
+			for(int i = 0; i<3; i++){
+				for(int j=0; j<9; j++){
+					flag = 1;
+					
+					cur_hive_x = hive_x + j % 3 - 1;
+					cur_hive_y = hive_y + j / 3 - 1;
+					cur_hive_z = hive_z + i - 1;
+
+					
+					if(cur_hive_x >= nhive_x || cur_hive_x < 0) nhive_x<3? flag=0: cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+					if(cur_hive_y >= nhive_y || cur_hive_y < 0) nhive_y<3? flag=0: cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+					if(cur_hive_z >= nhive_z || cur_hive_z < 0) nhive_z<3? flag=0: cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+					// if(outidx==616)printf("%d,%d,%d,%d\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z);
+					if (flag==0) continue; // exceeding the boundart and nf < 3
+					cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
+					// if(outidx==616)printf("%d,%d,%d,%d,%lu\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z,idx);
+					
+					
+
+					//if(cur_hive_idx>=nhive_x*nhive_y*nhive_z||cur_hive_idx<0)printf("%d,%d,%d,%d,%d ",cur_hive_idx, hive_x,hive_y, hive_z,flag);
+					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
+						// kernel evaluation
+						PCS ker;
+						PCS kervalue = 1.0;
+
+						PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
+						temp1 = abs(temp1-bin_x);
+						//++++ break if not in range
+						if(temp1>nf1/2.0)temp1 = nf1 - temp1;
+						if(abs(temp1)>ns/2.0)continue; 
+
+						PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
+						temp2 = abs(temp2-bin_y);
+						if(temp2>nf2/2.0)temp2 = nf2 - temp2;
+						if(abs(temp2)>ns/2.0)continue;
+
+						PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
+						temp3 = abs(temp3-bin_z);
+						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
+						if(abs(temp3)>ns/2.0)continue;
+						// if(outidx==0)printf("%lf,%lf,%lf,%lf\n",temp,temp2,temp3,c[k].x);
+						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
+						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
+						kervalue = kervalue * ker;
+						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
+						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
+						kervalue = kervalue * ker;
+
+						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
+						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
+						kervalue = kervalue * ker;
+						// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
+						
+						// if(outidx==nf1*nf2-1)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);
+						fw[outidx].x += c[k].x * kervalue;
+						fw[outidx].y += c[k].y * kervalue;
+						// if(outidx==nf1*nf2*nf3-10)printf("%lf\n",kervalue);
+
+					}
+				}
+			}
+		}
+	}
+}
+
+__global__ void conv_3d_outputdriven_shared_sparse(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
+	/*
+		blocksize = 8*8*8 if change may need to revise
+		another method also load intput into shared memroy by multi times
+
+		remove some variable or put to constant memory remove nbin
+	*/
+	
+	unsigned long int idx; // one hive by one hive
+	unsigned long int M = nbin_x; // the threads are padded
+	M *= nbin_y;
+	M *= nbin_z;
+	
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+		int hive_x, hive_y, hive_z;
+		unsigned long int outidx;
+		// int bin_idx;
+		// load to shared memory __synchronize
+		// extern __shared__ CUCPX sh_fw[];
+		__shared__ PCS sh_x[SHARED_SIZE_3D_HIVE];
+		__shared__ PCS sh_y[SHARED_SIZE_3D_HIVE];
+		__shared__ PCS sh_z[SHARED_SIZE_3D_HIVE];
+		__shared__ CUCPX sh_c[SHARED_SIZE_3D_HIVE];
+		__shared__ int neighbor_info[27];
+
 		int cur_hive_idx = blockIdx.x; // current hive idx
 		hive_x = cur_hive_idx % nhive_x;
 		hive_y = cur_hive_idx / nhive_x % nhive_y;
@@ -376,99 +506,128 @@ __global__ void conv_3d_outputdriven_shared(PCS *x, PCS *y, PCS *z, CUCPX *c, CU
 		outidx = nf1*nf2;
 		outidx *= bin_z;
 		outidx += bin_x + bin_y * nf1;
-		// if(idx==1144)printf("idx %d, %d, %d, %d\n",cur_hive_idx,(threadIdx.x / ((nbin_x / nhive_x) * (nbin_y / hive_y))) ,(nbin_x / nhive_x) * (nbin_y / hive_y),threadIdx.x);
-		// if(idx==5)printf("the outidx is %lu, %d,%d,%d,%d\n",outidx,hive_x,hive_y,hive_z ,threadIdx.x);
-		int flag = 1;
-		int cur_hive_x;
-		int cur_hive_y;
-		int cur_hive_z; 
+		
+		int flag = 0; // first bit is for x, y, z later consider this issue
+	
 		// start_hive_idx[1] = cur_hive_idx - nhive_x - 1;
 		// start_hive_idx[2] = start_hive_idx[1] + nhive_x*nhive_y;
 		// start_hive_idx[0] = start_hive_idx[1] - nhive_x*nhive_y; 
 		
-		
-		if(bin_x<nf1&&bin_y<nf2&&bin_z<nf3){
-			for(int i = 0; i<3; i++){
-				for(int j=0; j<9; j++){
-					flag = 1;
-					
-					cur_hive_x = hive_x + j % 3 - 1;
-					cur_hive_y = hive_y + j / 3 - 1;
-					cur_hive_z = hive_z + i - 1;
-
-					// cur_hive_idx = start_hive_idx[i] + j/3*nhive_x + j%3;
-					// hive_x = cur_hive_idx % nhive_x;
-					// hive_y = cur_hive_idx / nhive_x % nhive_y;
-					// hive_z = cur_hive_idx / (nhive_x * nhive_y);
-					// handling the exceeding boundary issue
-					
-					if(cur_hive_x >= nhive_x || cur_hive_x < 0) nhive_x<3? flag=0: cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
-					if(cur_hive_y >= nhive_y || cur_hive_y < 0) nhive_y<3? flag=0: cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
-					if(cur_hive_z >= nhive_z || cur_hive_z < 0) nhive_z<3? flag=0: cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
-					// if(outidx==616)printf("%d,%d,%d,%d\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z);
-					if (flag==0) continue; // exceeding the boundart and nf < 3
-					cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
-					// if(outidx==616)printf("%d,%d,%d,%d,%lu\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z,idx);
-					
-					
-
-					//if(cur_hive_idx>=nhive_x*nhive_y*nhive_z||cur_hive_idx<0)printf("%d,%d,%d,%d,%d ",cur_hive_idx, hive_x,hive_y, hive_z,flag);
-					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ // here problem
-						// kernel evaluation
-						PCS ker;
-						PCS kervalue = 1.0;
-
-						PCS temp = SHIFT_RESCALE(x[k], nf1, pirange); //save
-						temp = abs(temp-bin_x);
-						//++++ break if not in range
-						if(temp>nf1/2.0)temp = nf1 - temp;
-						if(abs(temp)>ns/2.0)continue; 
-
-						PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
-						temp2 = abs(temp2-bin_y);
-						if(temp2>nf2/2.0)temp2 = nf2 - temp2;
-						if(abs(temp2)>ns/2.0)continue;
-
-						PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
-						temp3 = abs(temp3-bin_z);
-						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
-						if(abs(temp3)>ns/2.0)continue;
-
-						kervalue_evaluate(ker, temp, ns, es_c, es_beta);
-						kervalue = kervalue * ker;
-
-						kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
-						kervalue = kervalue * ker;
-
-						kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
-						kervalue = kervalue * ker;
-						// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
-						
-						// if(outidx==nf1*nf2-1)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);
-						sh_fw[threadIdx.x].x += c[k].x * kervalue;
-						sh_fw[threadIdx.x].y += c[k].y * kervalue;
-						
-						// fw[outidx].x += c[k].x * kervalue;
-						// fw[outidx].y += c[k].y * kervalue;
-						// if(outidx==nf1*nf2*nf3-10)printf("%lf\n",kervalue);
-
-					// 	// if(idx == (nf1*nf2*nf3 - 1))printf("error\n");
-						
-						
-					// 	// sh_fw[threadIdx.x].x += c[k].x * kervalue;
-					// 	// sh_fw[threadIdx.x].y += c[k].y * kervalue;
-					}
-				}
-			}
+		if(threadIdx.x<27){ // have a litter improvement
+			int cur_hive_x;
+			int cur_hive_y;
+			int cur_hive_z; 
 			
-			// idx to global mem
-			// int outidx = bin_x + bin_y * nf1 + bin_z * nf1 * nf2;
-			fw[outidx].x = sh_fw[threadIdx.x].x;
-			fw[outidx].y = sh_fw[threadIdx.x].y;
+			cur_hive_z = hive_z + threadIdx.x / 9 - 1;
+			cur_hive_y = hive_y + threadIdx.x % 9 / 3 - 1;
+			cur_hive_x = hive_x + threadIdx.x % 3 - 1;
+
+			// some issues here
+			if(cur_hive_x >= nhive_x || cur_hive_x < 0) nhive_x<3? flag=1: cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+			if(cur_hive_y >= nhive_y || cur_hive_y < 0) nhive_y<3? flag=1: cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+			if(cur_hive_z >= nhive_z || cur_hive_z < 0) nhive_z<3? flag=1: cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+
+			neighbor_info[threadIdx.x] = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
 		}
 		__syncthreads();
+		
+		// loop from here
+		int hive_index = 0;
+		while(hive_index<27){
+			if(flag>=0)flag = 0;
+			cur_hive_idx = 0; // reuse as start of shared memory
+			// load data into shared memroy
+			for(; hive_index<27; hive_index++){
+				// if flag = -1, cur_nupt_num changed
+				int cur_nupt_num;
+				if(flag<0)
+				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]+flag*SHARED_SIZE_3D_HIVE;
+				else
+				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]-hive_count[neighbor_info[hive_index]];
+				// if(threadIdx.x==0&&blockIdx.x==0)printf("number of point in hive %d: %d\n",hive_index,cur_nupt_num);
+				if(cur_hive_idx+cur_nupt_num<=SHARED_SIZE_3D_HIVE){
+					// load to shared mem
+					flag = hive_count[neighbor_info[hive_index]]; //reuse flag
+					for(int j = threadIdx.x; j<cur_nupt_num; j+=blockDim.x){
+						// +++ shift here
+						sh_x[cur_hive_idx+j] = SHIFT_RESCALE(x[flag+j], nf1, pirange);
+						sh_y[cur_hive_idx+j] = SHIFT_RESCALE(y[flag+j], nf2, pirange);
+						sh_z[cur_hive_idx+j] = SHIFT_RESCALE(z[flag+j], nf3, pirange);
+						sh_c[cur_hive_idx+j] = c[flag+j]; // save those shifted stuff
+					}
+					cur_hive_idx+=cur_nupt_num;
+				}
+				else{
+					// points in one hive can not load into shared mem
+					if(cur_hive_idx==0){
+						// fully occupy the shared mem
+						int start_idx_full = hive_count[neighbor_info[hive_index]] - flag * SHARED_SIZE_3D_HIVE;
+						for(int j = threadIdx.x; j<SHARED_SIZE_3D_HIVE; j+=blockDim.x){
+							// +++ shift here
+							sh_x[j] = SHIFT_RESCALE(x[start_idx_full+j], nf1, pirange);
+							sh_y[j] = SHIFT_RESCALE(y[start_idx_full+j], nf2, pirange);
+							sh_z[j] = SHIFT_RESCALE(z[start_idx_full+j], nf3, pirange);
+							sh_c[j] = c[start_idx_full+j];
+						}
+						cur_hive_idx = SHARED_SIZE_3D_HIVE;
+						hive_index--;
+						flag--;
+					}
+					hive_index++;
+					break;
+				}
+			}
+			__syncthreads();
+
+			if(bin_x<nf1&&bin_y<nf2&&bin_z<nf3){
+				for(int i=0; i<cur_hive_idx; i++){
+					
+					// kernel evaluation
+					PCS ker;
+					PCS kervalue = 1.0;
+
+					PCS temp1 = abs(sh_x[i]-bin_x);
+					//++++ break if not in range
+					if(temp1>nf1/2.0)temp1 = nf1 - temp1;
+					temp1 = abs(temp1);
+					if(temp1>=ns/2.0)continue; 
+
+					PCS temp2 = abs(sh_y[i]-bin_y);
+					if(temp2>nf2/2.0)temp2 = nf2 - temp2;
+					temp2 = abs(temp2);
+					if(temp2>=ns/2.0)continue;
+
+					PCS temp3 = abs(sh_z[i]-bin_z);
+					if(temp3>nf3/2.0)temp3 = nf3 - temp3;
+					temp3 = abs(temp3);
+					if(temp3>=ns/2.0)continue;
+
+					// if(outidx==0)printf("%lf,%lf,%lf,%lf\n",temp,temp2,temp3,c[k].x);
+					ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
+					// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
+					kervalue = kervalue * ker;
+					ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
+					// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
+					kervalue = kervalue * ker;
+
+					ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
+					// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
+					kervalue = kervalue * ker;
+					// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
+					
+					// if(outidx==nf1*nf2-1)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);
+					fw[outidx].x += sh_c[i].x * kervalue;
+					fw[outidx].y += sh_c[i].y * kervalue;
+				
+				}
+			}
+			__syncthreads();
+		}
 	}
 }
+
+
+
 
 
 

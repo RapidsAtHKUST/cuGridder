@@ -54,7 +54,7 @@ struct conv_opts;
 void rescaling_real_invoker(PCS *d_x, PCS scale_ratio, int N);
 void rescaling_complex_invoker(CUCPX *d_x, PCS scale_ratio, int N);
 void prefix_scan(PCS *d_arr, PCS *d_res, int n, int flag);
-void prefix_scan(int *d_arr, int *d_res, unsigned long int n, int flag);
+// void prefix_scan(int *d_arr, int *d_res, unsigned long int n, int flag);
 void get_max_min(PCS &max, PCS &min, PCS *d_array, int n);
 int matrix_transpose_invoker(PCS *d_arr, int width, int height);
 int matrix_elementwise_multiply_invoker(CUCPX *a, PCS *b, int N);

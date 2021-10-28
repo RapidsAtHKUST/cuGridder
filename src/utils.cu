@@ -40,22 +40,6 @@ void prefix_scan(PCS *d_arr, PCS *d_res, int n, int flag)
     thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
 }
 
-void prefix_scan(int *d_arr, int *d_res, unsigned long int n, int flag)
-{
-  /*
-    n - number of elements
-    flag - 1 inclusive, 0 exclusive
-    thrust::inclusive_scan(d_arr, d_arr + n, d_res);
-  */
-  thrust::device_ptr<int> d_ptr(d_arr); // not convert
-  thrust::device_ptr<int> d_result(d_res);
-
-  if (flag)
-    thrust::inclusive_scan(d_ptr, d_ptr + n, d_result);
-  else
-    thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
-}
-
 void get_max_min(PCS &max, PCS &min, PCS *d_array, int n)
 {
   /*

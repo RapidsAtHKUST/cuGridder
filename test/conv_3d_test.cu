@@ -133,9 +133,9 @@ int main(int argc, char *argv[])
 
 	// opts and copts setting
 	h_plan->opts.gpu_conv_only = 1;
-	h_plan->opts.gpu_gridder_method = 2;
+	h_plan->opts.gpu_gridder_method = 3;
 	h_plan->opts.gpu_kerevalmeth = kerevalmeth;
-	h_plan->opts.gpu_sort = 1;
+	h_plan->opts.gpu_sort = 0;
 	h_plan->opts.upsampfac = sigma;
 	h_plan->dim = 3;
 	// h_plan->copts.pirange = 1;
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
 	cudaEventCreate(&cuda_end);
 
 	cudaEventRecord(cuda_start);
-	if(h_plan->opts.gpu_sort){
+	if(h_plan->opts.gpu_gridder_method){
         bin_mapping(h_plan);
     }
 	// convolution

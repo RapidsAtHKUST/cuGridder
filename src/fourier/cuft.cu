@@ -137,7 +137,7 @@ int cura_prestage(CURAFFT_PLAN *plan){
         }
         if(plan->dim>2){
             nf3 = plan->nf3;
-            printf("I am inn\n");
+            // printf("I am inn\n");
             fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3/2+1);
         }
         // binmapping
@@ -196,27 +196,27 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
 
     plan->byte_now = 0;
     // No extra memory is needed in nuptsdriven method (case 0, sort 0)
-    switch (plan->opts.gpu_gridder_method)
-    {
-        case 0:
-        {
-            break;
-        }
-        case 1:
-        {
-            //sorted
-            // checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin, sizeof(int) * M));
-            // checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(plan->nf1*plan->nf2+1)));
-        }
-        case 2:
-        {
-            //multi pass
-        }
-        break;
+    // switch (plan->opts.gpu_gridder_method)
+    // {
+    //     case 0:
+    //     {
+    //         break;
+    //     }
+    //     case 1:
+    //     {
+    //         //sorted
+    //         // checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin, sizeof(int) * M));
+    //         // checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(plan->nf1*plan->nf2+1)));
+    //     }
+    //     case 2:
+    //     {
+    //         //multi pass
+    //     }
+    //     break;
 
-        default:
-            std::cerr << "err: invalid method " << std::endl;
-    }
+    //     default:
+    //         std::cerr << "err: invalid method " << std::endl;
+    // }
     if(plan->opts.gpu_gridder_method){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=8;};
     // correction factor memory allocation
     if (!plan->opts.gpu_conv_only)
@@ -230,7 +230,7 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
             }
             if (plan->dim > 2)
             {
-                printf("I am inn %d\n",plan->nf3);
+                // printf("I am inn %d\n",plan->nf3);
                 checkCudaErrors(cudaMalloc(&plan->fwkerhalf3, (plan->nf3 / 2 + 1) * sizeof(PCS)));
             }
             

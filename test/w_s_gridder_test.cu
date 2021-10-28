@@ -118,11 +118,12 @@ int main(int argc, char *argv[])
 	checkCudaErrors(cudaMalloc((void**)&d_w, nrow * sizeof(PCS)));
 	checkCudaErrors(cudaMalloc((void**)&d_vis, nrow * sizeof(CUCPX)));
 
+	PCS pixelsize = fov*PI/180/nxdirty;
 	// generating data
 	for (int i = 0; i < nrow; i++)
 	{
-		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0; //xxxxx remove
-		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
+		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize; //xxxxx remove
+		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize;
 		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
 		vis[i].real(randm11()); // nrow vis per channel, weight?
 		vis[i].imag(randm11());
@@ -160,6 +161,8 @@ int main(int argc, char *argv[])
 	for(int i=0; i<nchan; i++){
 		f_over_c[i] = freq[i]/SPEEDOFLIGHT;
 	}
+
+	
 
 	/* ----------Step2: cugridder------------*/
 	// plan setting
