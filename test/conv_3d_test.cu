@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 
 	// opts and copts setting
 	h_plan->opts.gpu_conv_only = 1;
-	h_plan->opts.gpu_gridder_method = 3;
+	h_plan->opts.gpu_gridder_method = 4;
 	h_plan->opts.gpu_kerevalmeth = kerevalmeth;
 	h_plan->opts.gpu_sort = 0;
 	h_plan->opts.upsampfac = sigma;
@@ -176,6 +176,16 @@ int main(int argc, char *argv[])
 	if(h_plan->opts.gpu_gridder_method){
         bin_mapping(h_plan);
     }
+	cudaEventRecord(cuda_end);
+
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+
+	printf("pre computing time: %.5g s\n",kernel_time/1000.0);
+
+	cudaEventRecord(cuda_start);
+
 	// convolution
 	curafft_conv(h_plan); //add to include
 	cudaEventRecord(cuda_end);
@@ -186,7 +196,7 @@ int main(int argc, char *argv[])
 	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
 
 	// checkCudaErrors(cudaDeviceSynchronize());
-	checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
+	// checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
 
 	// int nf3 = h_plan->num_w;
 	printf("Method %d (nupt driven) %d NU pts to #%d U pts in %.5g s\n",

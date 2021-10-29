@@ -124,7 +124,7 @@ int bin_mapping(CURAFFT_PLAN *plan){
     int nf1 = plan->nf1;
     int nf2 = plan->nf2;
     int nf3 = plan->nf3;
-
+    int method = plan->opts.gpu_gridder_method;
     PCS *d_u_out, *d_v_out, *d_w_out;
     CUCPX *d_c_out;
     checkCudaErrors(cudaMalloc((void **)&d_u_out, sizeof(PCS)*M));
@@ -132,7 +132,7 @@ int bin_mapping(CURAFFT_PLAN *plan){
     checkCudaErrors(cudaMalloc((void **)&d_w_out,sizeof(PCS)*M));
     checkCudaErrors(cudaMalloc((void **)&d_c_out,sizeof(CUCPX)*M));
     checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin,sizeof(int)*M));
-    if(plan->opts.gpu_gridder_method==2||plan->opts.gpu_gridder_method==3){ // sufficient memory // a litter messy
+    if(method==2||method==3||method==4){ // sufficient memory // a litter messy
       int nhive[3];
       nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
       nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
@@ -161,9 +161,9 @@ int bin_mapping(CURAFFT_PLAN *plan){
       // printf("%d\n",plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2]);
       counting_hive_invoker(plan->hive_count, plan->histo_count, hive_count_size, plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2]);
       
-      mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive);
+      mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,method);
     }
-    else if(plan->opts.gpu_gridder_method==1){ // partical mapping
+    else if(method==1){ // partical mapping
       checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(nf1*nf2+1)));
       checkCudaErrors(cudaMalloc((void **)&plan->se_loc,sizeof(int2)*M));
       checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nf1*nf2+1)));
@@ -178,7 +178,7 @@ int bin_mapping(CURAFFT_PLAN *plan){
         /// ++++ plane array
         checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nf1*nf2+1)));
       }
-      if(plan->opts.gpu_gridder_method == 1)checkCudaErrors(cudaFree(plan->se_loc));
+      if(method == 1)checkCudaErrors(cudaFree(plan->se_loc));
     }
     checkCudaErrors(cudaFree(plan->d_u));
     checkCudaErrors(cudaFree(plan->d_v));
@@ -266,7 +266,7 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
 		// milliseconds,plan->opts.gpu_kerevalmeth);
     
   }
-  else if (method==2 || method==3){
+  else{
     block.x = plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2];
     int nhive[3];
     nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
@@ -279,10 +279,19 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
     if(method==3){
+      printf("correct direction\n");
       conv_3d_outputdriven_shared_sparse<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
-      printf("correct direction\n");
+    }
+
+    if(method==4){
+      PCS *h_lut = (PCS *)malloc(sizeof(PCS)*LOOKUP_TABLE_SIZE);
+      memset(h_lut,0,sizeof(PCS)*LOOKUP_TABLE_SIZE);
+      set_ker_eval_lut(h_lut);
+      conv_3d_outputdriven_shared_hive_lut<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
+                                          nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
+                                          nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
     }
     
     cudaError_t err = cudaGetLastError();

@@ -13,7 +13,7 @@ NVARCH ?= -arch=sm_70
 CFLAGS    ?= -fPIC -O3 -funroll-loops -march=native
 CXXFLAGS  ?= $(CFLAGS) -std=c++14
 NVCCFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) -Wno-deprecated-gpu-targets \
-	     --default-stream per-thread -Xcompiler "$(CXXFLAGS)"
+	     --default-stream per-thread -Xcompiler "$(CXXFLAGS)" -use_fast_math
 
 
 #NVCCFLAGS+= -DINFO -DDEBUG -DRESULT -DTIME
