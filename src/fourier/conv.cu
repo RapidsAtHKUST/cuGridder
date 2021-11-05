@@ -23,7 +23,7 @@ void set_ker_eval_lut(PCS *h_ker_eval_lut){
 static __inline__ __device__ void kervalue_evaluate(PCS &ker, const PCS x, const double kw, const double es_c,
 												 const double es_beta)
 {	
-	ker = (abs(x) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * x  * x ) -1));
+	ker = (abs(x) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * x  * x )));
 }
 
 
@@ -34,7 +34,7 @@ static __inline__ __device__ void val_kernel_vec(PCS *ker, const PCS x, const do
 	//get vector of kernel function values
 	for (int i = 0; i < kw; i++)
 	{
-		ker[i] = (abs(x + i) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * (x + i) * (x + i)) -1));
+		ker[i] = (abs(x + i) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * (x + i) * (x + i))));
 	}
 }
 
@@ -323,14 +323,14 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
 						if(abs(temp3)>ns/2.0)continue;
 						// if(outidx==0)printf("%lf,%lf,%lf,%lf\n",temp,temp2,temp3,c[k].x);
-						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 ) -1));
+						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
-						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 ) -1));
+						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
 						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 
-						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 ) -1));
+						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 						// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
@@ -446,14 +446,14 @@ __global__ void conv_3d_outputdriven_shared(PCS *x, PCS *y, PCS *z, CUCPX *c, CU
 						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
 						if(abs(temp3)>ns/2.0)continue;
 						// if(outidx==0)printf("%lf,%lf,%lf,%lf\n",temp,temp2,temp3,c[k].x);
-						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 ) -1));
+						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
-						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 ) -1));
+						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
 						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 
-						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 ) -1));
+						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 						// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
@@ -781,18 +781,16 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					ker = ker_eval_lut[(int)temp1];
 					// ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 					// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
-					kervalue = ((kervalue * ker+1)*sh_x[i]+sh_y[i])*sh_z[i];
+					kervalue = kervalue * ker+1;
 
 					ker = ker_eval_lut[(int)temp2];
 					// ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
 					// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
-					kervalue = ((kervalue * ker+1)*sh_x[i]+sh_y[i])*sh_z[i];
-					
+					kervalue = kervalue * ker+1;
 					ker = ker_eval_lut[(int)temp3];
 					// ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
 					// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
-					kervalue = ((kervalue * ker+1)*sh_x[i]+sh_y[i])*sh_z[i];
-
+					kervalue = kervalue * ker+1;
 					
 					// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
 					

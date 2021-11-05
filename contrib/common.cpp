@@ -26,7 +26,7 @@ PCS evaluate_kernel(PCS x, const conv_opts &opts)
     // if spreading/FT careful, shouldn't need this if, but causes no speed hit
     return 0.0;
   else
-    return exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c*x*x)-1));
+    return exp(opts.ES_beta * sqrt(1.0 - opts.ES_c*x*x));
 }
 
 void onedim_fseries_kernel_seq(int nf, PCS *fwkerhalf, conv_opts opts)
