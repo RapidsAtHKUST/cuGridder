@@ -80,7 +80,7 @@ int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N)
     {                                                              // set up nodes z_n and vals f_n
         x[n] *= alpha;                                                // rescale nodes
         PCS phi = 0.0;
-        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])));
+        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n]) -1));
         g[n] = alpha * (PCS)w[n] * phi;  // vals & quadr wei
         // a[n] = exp(2 * PI * IMA * (PCS)(nf / 2 - z[n]) / (PCS)nf); // phase winding rates
     }
@@ -127,7 +127,7 @@ int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, in
     {                                                              // set up nodes z_n and vals f_n
         x[n] *= alpha;                                                // rescale nodes
         PCS phi = 0.0;
-        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])));
+        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])-1));
         g[n] = alpha * (PCS)w[n] * phi;  // vals & quadr wei
         // a[n] = exp(2 * PI * IMA * (PCS)(nf / 2 - z[n]) / (PCS)nf); // phase winding rates
     }
@@ -175,7 +175,7 @@ int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N)
     {                                                              // set up nodes z_n and vals f_n
         x[n] *= alpha;                                                // rescale nodes
         PCS phi = 0.0;
-        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])));
+        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])-1));
         g[n] = alpha * (PCS)w[n] * phi;  // vals & quadr wei
         // a[n] = exp(2 * PI * IMA * (PCS)(nf / 2 - z[n]) / (PCS)nf); // phase winding rates
     }

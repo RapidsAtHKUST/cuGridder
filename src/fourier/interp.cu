@@ -20,7 +20,7 @@ static __inline__ __device__ void val_kernel_vec(PCS *ker, const PCS x, const do
 	//get vector of kernel function values
 	for (int i = 0; i < kw; i++)
 	{
-		ker[i] = (abs(x + i) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * (x + i) * (x + i))));
+		ker[i] = (abs(x + i) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * (x + i) * (x + i))-1));
 	}
 }
 
