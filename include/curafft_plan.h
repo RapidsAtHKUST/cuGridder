@@ -12,7 +12,8 @@
 #include "../contrib/utils_fp.h"
 
 #define MAX_KERNEL_WIDTH 16
-
+#define NUM_SEGMENT 2000
+#define SEG_ORDER 5
 #undef CURAFFT_PLAN
 
 #ifdef SINGLE
@@ -109,6 +110,11 @@ struct CURAFFT_PLAN
 	int *histo_count;
 	int *sortidx_bin;
 	int2 *se_loc;
+
+	PCS *c0;
+	// PCS *c1;
+	// PCS *c2;
+	// PCS *c3;
 
 	// int *idxnupts;	 //length: #nupts, index of the nupts in the bin-sorted order (size is M) abs location in bin
 	// int *sortidx;	 //length: #nupts, order inside the bin the nupt belongs to (size is M) local position in bin

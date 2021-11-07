@@ -15,6 +15,7 @@
 #include "cuft.h"
 #include "conv_interp_invoker.h"
 #include "deconv.h"
+#include "conv.h"
 
 __global__ void pre_stage_1(PCS o_center_0, PCS o_center_1, PCS o_center_2, PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_c, int M, int flag)
 {
@@ -299,6 +300,25 @@ int cunufft_setting(int N1, int N2, int N3, int M, int kerevalmeth, int method, 
     plan->copts.direction = direction; // 1 inverse, 0 forward
 
     ier = setup_conv_opts(plan->copts, tol, sigma, 1, direction, kerevalmeth); //check the arguements pirange = 1
+
+    if(kerevalmeth==1){
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        PCS *h_c1 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        PCS *h_c2 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        PCS *h_c3 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        taylor_series_approx_factors(h_c0,h_c1,h_c2,h_c3,plan->copts.ES_beta,NUM_SEGMENT);
+        // printf("beta %lf\n",plan->copts.ES_beta);
+        // double t=0.0003;
+        // double eval = h_c0[0]+t*(h_c1[0]+t*(h_c2[0]+h_c3[0]*t));
+        // printf("eval %lf",eval);
+        // copy to constant mem
+        set_ker_eval_lut(h_c0,h_c1,h_c2,h_c3);
+
+        free(h_c0);
+        free(h_c1);
+        free(h_c2);
+        free(h_c3);
+    }
 
     if (ier != 0)
         printf("setup_error\n");

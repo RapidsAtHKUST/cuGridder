@@ -13,8 +13,7 @@
 
 #define SHARED_SIZE_3D_OUTPUT_HIVE 512
 #define SHARED_SIZE_3D_HIVE 1024
-#define LOOKUP_TABLE_SIZE 8000
-
+#define SHARED_SIZE_SEG 512
 // NU coord handling macro: if p is true, rescales from [-pi,pi) to [0,N], then
 // folds *only* one period below and above, ie [-N,2N], into the domain [0,N]...
 // RESCALE is from Barnett 2/7/17.
@@ -24,7 +23,7 @@
 //need to revise, need to combine rescale
 #define SHIFT_RESCALE(x, N, p) ((p ? x : ((x - floor(x / M_2PI) * M_2PI) - ((x - floor(x / M_2PI) * M_2PI) >= PI) * M_2PI)) * M_1_2PI + 0.5) * N
 
-void set_ker_eval_lut(PCS *h_ker_eval_lut);
+void set_ker_eval_lut(PCS *h_c0, PCS *h_c1, PCS *h_c2, PCS *h_c3);
 
 __global__ void conv_1d_nputsdriven(PCS *x, CUCPX *c, CUCPX *fw, int M,
 									const int ns, int nf1, PCS es_c, PCS es_beta, int pirange);
@@ -48,6 +47,8 @@ __global__ void conv_3d_outputdriven_shared(PCS *x, PCS *y, PCS *z, CUCPX *c, CU
 __global__ void conv_3d_outputdriven_shared_sparse(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
 	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange);
 
-__global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
-	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange);
+// __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+// 	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange);
+__global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, PCS *c0, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, int pirange);
 #endif

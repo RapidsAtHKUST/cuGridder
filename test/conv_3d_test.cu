@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 		tol = (PCS)w; // so can read 1e6 right!
 	}
 
-	int kerevalmeth = 0;
+	int kerevalmeth = 1;
 	if (argc > 7)
 	{
 		sscanf(argv[7], "%d", &kerevalmeth);
@@ -146,6 +146,28 @@ int main(int argc, char *argv[])
 
 	if (ier != 0)
 		printf("setup_error\n");
+	if(kerevalmeth==1){
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
+        // PCS *h_c1 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        // PCS *h_c2 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        // PCS *h_c3 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        // taylor_series_approx_factors(h_c0,h_c1,h_c2,h_c3,h_plan->copts.ES_beta,NUM_SEGMENT);
+        taylor_series_approx_factors(h_c0,h_plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER);
+		// printf("beta %lf\n",h_plan->copts.ES_beta);
+        double t=0.0003580153376;
+		int idx = 508;
+        double eval = h_c0[idx*5]+t*(h_c0[idx*5+1]+t*(h_c0[idx*5+2]+t*(h_c0[idx*5+3]+t*h_c0[idx*5+4])));
+        printf("eval %lf, %lf, %lf, %lf, %lf, %lf\n",eval,h_c0[idx*5],h_c0[idx*5+1],h_c0[idx*5+2],h_c0[idx*5+3],h_c0[idx*5+4]);
+		printf("truth %lf\n", exp(h_plan->copts.ES_beta*sqrt(1-(t+1/512.0*idx)*(t+1/512.0*idx))));
+        // copy to constant mem
+        // set_ker_eval_lut(h_c0,h_c1,h_c2,h_c3);
+		checkCudaErrors(cudaMalloc((void**)&h_plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
+		checkCudaErrors(cudaMemcpy(h_plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
+        free(h_c0);
+        // free(h_c1);
+        // free(h_c2);
+        // free(h_c3);
+    }
 
 	// plan setting
 	int nf1 = (int)N1 * sigma;
@@ -195,8 +217,8 @@ int main(int argc, char *argv[])
 
 	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
 
-	// checkCudaErrors(cudaDeviceSynchronize());
-	// checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
+	checkCudaErrors(cudaDeviceSynchronize());
+	checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
 
 	// int nf3 = h_plan->num_w;
 	printf("Method %d (nupt driven) %d NU pts to #%d U pts in %.5g s\n",
@@ -205,20 +227,20 @@ int main(int argc, char *argv[])
 	curafft_free(h_plan);
 
 	// std::cout << "[result-input]" << std::endl;
-	// ofstream myfile;
-  	// myfile.open ("result2.txt");
-	// for (int k = 0; k < 10; k++)
+	// // ofstream myfile;
+  	// // myfile.open ("result2.txt");
+	// for (int k = 0; k < 1; k++)
 	// {
 	// 	for (int j = 0; j < nf2; j++)
 	// 	{
 	// 		for (int i = 0; i < nf1; i++)
 	// 		{
-	// 			// printf(" (%2.3g,%2.3g)", fw[i + j * nf1 + k * nf2 * nf1].real(),
-	// 			// 	   fw[i + j * nf1 + k * nf2 * nf1].imag());
-	// 			myfile<<fw[i + j * nf1 + k * nf2 * nf1].real();
-	// 			myfile<<fw[i + j * nf1 + k * nf2 * nf1].imag();
+	// 			printf(" (%2.3g,%2.3g)", fw[i + j * nf1 + k * nf2 * nf1].real(),
+	// 				   fw[i + j * nf1 + k * nf2 * nf1].imag());
+	// 			// myfile<<fw[i + j * nf1 + k * nf2 * nf1].real();
+	// 			// myfile<<fw[i + j * nf1 + k * nf2 * nf1].imag();
 	// 		}
-	// 		myfile<<"\n";
+	// 		// myfile<<"\n";
 	// 		std::cout << std::endl;
 	// 	}
 	// 	std::cout << std::endl;

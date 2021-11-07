@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 		epsilon = (PCS)inp; // so can read 1e6 right!
 	}
 
-	int kerevalmeth = 0;
+	int kerevalmeth = 1;
 	if (argc > 9)
 	{
 		sscanf(argv[9], "%d", &kerevalmeth);

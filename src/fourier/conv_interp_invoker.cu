@@ -286,12 +286,12 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
     }
 
     if(method==4){
-      PCS *h_lut = (PCS *)malloc(sizeof(PCS)*LOOKUP_TABLE_SIZE);
-      memset(h_lut,0,sizeof(PCS)*LOOKUP_TABLE_SIZE);
-      set_ker_eval_lut(h_lut);
-      conv_3d_outputdriven_shared_hive_lut<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
+      // PCS *h_lut = (PCS *)malloc(sizeof(PCS)*LOOKUP_TABLE_SIZE);
+      // memset(h_lut,0,sizeof(PCS)*LOOKUP_TABLE_SIZE);
+      // set_ker_eval_lut(h_lut);
+      conv_3d_outputdriven_shared_hive_lut<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->c0, plan->hive_count, plan->copts.kw, 
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
-                                          nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
+                                          nhive[0], nhive[1], nhive[2], plan->copts.pirange);
     }
     
     cudaError_t err = cudaGetLastError();

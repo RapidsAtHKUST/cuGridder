@@ -225,7 +225,7 @@ void mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_ou
   int blocksize = 256;
   if(method==2)
   mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2]);
-  if(method==3)mapping_based_gather_3d_replace<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2]);
+  if(method==3||method==4)mapping_based_gather_3d_replace<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2]);
   checkCudaErrors(cudaDeviceSynchronize());
 }
 
@@ -401,4 +401,29 @@ void set_nhg_w(PCS S, PCS X, conv_opts spopts,
   if (nf<2*spopts.kw) nf=2*spopts.kw;
   h = 2*PI / nf;                            // upsampled grid spacing
   gam = (PCS)nf / (2.0*spopts.upsampfac*Ssafe);  // x scale fac to x'
+}
+
+void taylor_series_approx_factors(PCS *c0, PCS *c1, PCS *c2, PCS *c3, double beta, int N){
+  for(int i=0; i<N; i++){
+    double x = i / (double) N;
+    c0[i] = exp(beta*sqrt(1-x*x));
+    c1[i] = -beta*x*c0[i] / sqrt(1-x*x); //power
+    c2[i] = - beta*(beta*x*x*pow((1-x*x),1.5) + x*x -1)*c0[i] / pow((1-x*x),1.5)/(x*x-1) /2; //some error here
+    c3[i] = beta*x*(3*beta*pow((1-x*x),2.5)+beta*beta*pow(x,8)-3*beta*beta*pow(x,6)+(3*beta*beta-3)*pow(x,4)+(6-beta*beta)*x*x-3)*c0[i]/
+            pow((1-x*x),2.5)/pow((x*x-1),2) /6;
+  }
+}
+
+void taylor_series_approx_factors(PCS *c0, double beta, int N, int N_order){
+  for(int i=0; i<N; i++){
+    double x = i / (double) N;
+    c0[i*N_order] = exp(beta*sqrt(1-x*x));
+    c0[i*N_order+1] =  -beta*x*c0[i*N_order] / sqrt(1-x*x);
+    c0[i*N_order+2] = - beta*(beta*x*x*pow((1-x*x),1.5) + x*x -1)*c0[i*N_order] / pow((1-x*x),1.5)/(x*x-1) /2;
+    c0[i*N_order+3] = beta*x*(3*beta*pow((1-x*x),2.5)+beta*beta*pow(x,8)-3*beta*beta*pow(x,6)+(3*beta*beta-3)*pow(x,4)+(6-beta*beta)*x*x-3)*c0[i*N_order]/
+            pow((1-x*x),2.5)/pow((x*x-1),2) /6;
+    c0[i*N_order+4] = beta*(6*beta*beta*pow(x,10)+(-24*beta*beta-12)*pow(x,8)+pow((1-x*x),3.5)*(beta*beta*beta*pow(x,6)-pow(beta,3)*pow(x,4)-12*beta*x*x-3*beta)+
+                      (36*beta*beta+33)*pow(x,6)+(-24*beta*beta-27)*pow(x,4)+(6*beta*beta+3)*x*x+3)*c0[i*N_order] /
+                      pow((1-x*x),3.5)/pow((x*x-1),3)/24;
+  }
 }

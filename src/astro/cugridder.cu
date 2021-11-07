@@ -135,6 +135,21 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     
     ier = setup_conv_opts(plan->copts, tol, sigma, 1, direction, kerevalmeth); //check the arguements pirange = 1
     
+    if(kerevalmeth==1){
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        PCS *h_c1 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        PCS *h_c2 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        PCS *h_c3 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
+        taylor_series_approx_factors(h_c0,h_c1,h_c2,h_c3,plan->copts.ES_beta,NUM_SEGMENT);
+        // copy to constant mem
+        set_ker_eval_lut(h_c0,h_c1,h_c2,h_c3);
+        
+        free(h_c0);
+        free(h_c1);
+        free(h_c2);
+        free(h_c3);
+    }
+
     int fftsign = (direction > 0) ? 1 : -1;
     plan->iflag = fftsign; 
 
