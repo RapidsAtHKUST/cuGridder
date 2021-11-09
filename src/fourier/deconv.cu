@@ -57,7 +57,7 @@ __global__ void fourier_series_appro(PCS *fseries, PCS *k, int N, PCS *g, double
     }
 }
 
-int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N)
+int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N, int func_type)
 {
     /*
         One dimensional Fourier series approximation. f(k) = int e^{ikx} f(x) dx.
@@ -80,7 +80,7 @@ int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N)
     {                                                              // set up nodes z_n and vals f_n
         x[n] *= alpha;                                                // rescale nodes
         PCS phi = 0.0;
-        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])));
+        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])-func_type));
         g[n] = alpha * (PCS)w[n] * phi;  // vals & quadr wei
         // a[n] = exp(2 * PI * IMA * (PCS)(nf / 2 - z[n]) / (PCS)nf); // phase winding rates
     }
@@ -102,7 +102,7 @@ int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N)
 }
 
 
-int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, int nf)
+int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, int nf, int func_type)
 {
     /*
         One dimensional Fourier series approximation. f(k) = int e^{ikx} f(x) dx.
@@ -127,7 +127,7 @@ int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, in
     {                                                              // set up nodes z_n and vals f_n
         x[n] *= alpha;                                                // rescale nodes
         PCS phi = 0.0;
-        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])));
+        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])-func_type));
         g[n] = alpha * (PCS)w[n] * phi;  // vals & quadr wei
         // a[n] = exp(2 * PI * IMA * (PCS)(nf / 2 - z[n]) / (PCS)nf); // phase winding rates
     }
@@ -148,7 +148,7 @@ int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, in
     return ier;
 }
 
-int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N)
+int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, int func_type)
 {
     /*
         One dimensional Fourier series approximation. f(k) = int e^{ikx} f(x) dx.
@@ -175,7 +175,7 @@ int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N)
     {                                                              // set up nodes z_n and vals f_n
         x[n] *= alpha;                                                // rescale nodes
         PCS phi = 0.0;
-        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])));
+        if(abs(x[n])<=opts.ES_halfwidth) phi = exp(opts.ES_beta * (sqrt(1.0 - opts.ES_c * x[n] * x[n])-func_type));
         g[n] = alpha * (PCS)w[n] * phi;  // vals & quadr wei
         // a[n] = exp(2 * PI * IMA * (PCS)(nf / 2 - z[n]) / (PCS)nf); // phase winding rates
     }

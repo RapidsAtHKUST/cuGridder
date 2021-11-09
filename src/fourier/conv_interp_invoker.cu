@@ -279,10 +279,10 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
     if(method==3){
-      printf("correct direction\n");
       conv_3d_outputdriven_shared_sparse<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
+      // free hive count
     }
 
     if(method==4){
@@ -293,6 +293,8 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.pirange);
     }
+    checkCudaErrors(cudaFree(plan->hive_count));
+    if(plan->opts.gpu_kerevalmeth)checkCudaErrors(cudaFree(plan->c0));
     
     cudaError_t err = cudaGetLastError();
 

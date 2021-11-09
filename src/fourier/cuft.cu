@@ -131,15 +131,15 @@ int cura_prestage(CURAFFT_PLAN *plan){
         int nf3 = 1;
 
         // fourier series
-        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1/2+1);
+        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1/2+1, plan->opts.gpu_kerevalmeth);
         if(plan->dim>1){
             nf2 = plan->nf2;
-            fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2/2+1);
+            fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2/2+1, plan->opts.gpu_kerevalmeth);
         }
         if(plan->dim>2){
             nf3 = plan->nf3;
             // printf("I am inn\n");
-            fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3/2+1);
+            fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3/2+1, plan->opts.gpu_kerevalmeth);
         }
         // binmapping
         if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan); //currently just support 3d
@@ -302,23 +302,13 @@ int cunufft_setting(int N1, int N2, int N3, int M, int kerevalmeth, int method, 
     ier = setup_conv_opts(plan->copts, tol, sigma, 1, direction, kerevalmeth); //check the arguements pirange = 1
 
     if(kerevalmeth==1){
-        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        PCS *h_c1 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        PCS *h_c2 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        PCS *h_c3 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        taylor_series_approx_factors(h_c0,h_c1,h_c2,h_c3,plan->copts.ES_beta,NUM_SEGMENT);
-        // printf("beta %lf\n",plan->copts.ES_beta);
-        // double t=0.0003;
-        // double eval = h_c0[0]+t*(h_c1[0]+t*(h_c2[0]+h_c3[0]*t));
-        // printf("eval %lf",eval);
-        // copy to constant mem
-        set_ker_eval_lut(h_c0,h_c1,h_c2,h_c3);
-
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
+        taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,kerevalmeth);
+		checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
+		checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
         free(h_c0);
-        free(h_c1);
-        free(h_c2);
-        free(h_c3);
     }
+    
 
     if (ier != 0)
         printf("setup_error\n");
@@ -414,16 +404,16 @@ int cunufft_setting(int N1, int N2, int N3, int M, int kerevalmeth, int method, 
     // type 1 | 2 - fourier series
     if (type != 3)
     {
-        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1 / 2 + 1);
+        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1 / 2 + 1, plan->opts.gpu_kerevalmeth);
         if (dim > 1)
-            fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2 / 2 + 1);
+            fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2 / 2 + 1, plan->opts.gpu_kerevalmeth);
         if (dim > 2)
-            fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3 / 2 + 1);
+            fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3 / 2 + 1, plan->opts.gpu_kerevalmeth);
     }
     // type 3 - fourier series
     else
     {
-        fourier_series_appro_invoker(plan->fwkerhalf1, plan->d_x, plan->copts, N1);
+        fourier_series_appro_invoker(plan->fwkerhalf1, plan->d_x, plan->copts, N1, plan->opts.gpu_kerevalmeth);
         // other dim ++++
     }
 

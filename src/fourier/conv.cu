@@ -44,20 +44,20 @@ static __inline__ __device__ void val_kernel_vec(PCS *ker, const PCS x, const do
 	}
 }
 
-static __inline__ __device__
-void eval_kernel_vec_Horner(PCS *ker, const PCS x, const int w,
-	const double upsampfac)
-	/* Fill ker[] with Horner piecewise poly approx to [-w/2,w/2] ES kernel eval at
-	   x_j = x + j,  for j=0,..,w-1.  Thus x in [-w/2,-w/2+1].   w is aka ns.
-	   This is the current evaluation method, since it's faster (except i7 w=16).
-	   Two upsampfacs implemented. Params must match ref formula. Barnett 4/24/18 */
-{
-	PCS z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
-	// insert the auto-generated code which expects z, w args, writes to ker...
-	if (upsampfac==2.0) {     // floating point equality is fine here
-#include "../../contrib/ker_horner_allw_loop.c"
-	}
-}
+// static __inline__ __device__
+// void eval_kernel_vec_Horner(PCS *ker, const PCS x, const int w,
+// 	const double upsampfac)
+// 	/* Fill ker[] with Horner piecewise poly approx to [-w/2,w/2] ES kernel eval at
+// 	   x_j = x + j,  for j=0,..,w-1.  Thus x in [-w/2,-w/2+1].   w is aka ns.
+// 	   This is the current evaluation method, since it's faster (except i7 w=16).
+// 	   Two upsampfacs implemented. Params must match ref formula. Barnett 4/24/18 */
+// {
+// 	PCS z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
+// 	// insert the auto-generated code which expects z, w args, writes to ker...
+// 	if (upsampfac==2.0) {     // floating point equality is fine here
+// #include "../../contrib/ker_horner_allw_loop.c"
+// 	}
+// }
 
 __global__ void conv_1d_nputsdriven(PCS *x, CUCPX *c, CUCPX *fw, int M,
 									const int ns, int nf1, PCS es_c, PCS es_beta, int pirange)
@@ -286,7 +286,6 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 		// start_hive_idx[2] = start_hive_idx[1] + nhive_x*nhive_y;
 		// start_hive_idx[0] = start_hive_idx[1] - nhive_x*nhive_y; 
 		
-		
 		if(bin_x<nf1&&bin_y<nf2&&bin_z<nf3){
 			for(int i = 0; i<3; i++){
 				for(int j=0; j<9; j++){
@@ -305,8 +304,6 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 					cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
 					// if(outidx==616)printf("%d,%d,%d,%d,%lu\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z,idx);
 					
-					
-
 					//if(cur_hive_idx>=nhive_x*nhive_y*nhive_z||cur_hive_idx<0)printf("%d,%d,%d,%d,%d ",cur_hive_idx, hive_x,hive_y, hive_z,flag);
 					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
 						// kernel evaluation
@@ -328,18 +325,18 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 						temp3 = abs(temp3-bin_z);
 						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
 						if(abs(temp3)>ns/2.0)continue;
-						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
-						// if(outidx==3)printf("1st %lf\n",ker);
+						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )-1));
+						// if(outidx==575)printf("1st %.12lf, %lf\n",ker,temp1);
 
 						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
-						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
-						// if(outidx==3)printf("2nd %lf\n",ker);
+
+						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )-1));
+						// if(outidx==575)printf("2nd %.12lf\n",ker);
 
 						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
-						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
-						// if(outidx==3)printf("3rd %lf\n",ker);
+						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )-1));
 
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
@@ -353,7 +350,7 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 					}
 				}
 			}
-		}
+		}	
 	}
 }
 
@@ -415,9 +412,9 @@ __global__ void conv_3d_outputdriven_shared_sparse(PCS *x, PCS *y, PCS *z, CUCPX
 			cur_hive_x = hive_x + threadIdx.x % 3 - 1;
 
 			// some issues here
-			if(cur_hive_x >= nhive_x || cur_hive_x < 0) nhive_x<3? flag=1: cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
-			if(cur_hive_y >= nhive_y || cur_hive_y < 0) nhive_y<3? flag=1: cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
-			if(cur_hive_z >= nhive_z || cur_hive_z < 0) nhive_z<3? flag=1: cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+			if(cur_hive_x >= nhive_x || cur_hive_x < 0)  cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+			if(cur_hive_y >= nhive_y || cur_hive_y < 0)  cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+			if(cur_hive_z >= nhive_z || cur_hive_z < 0)  cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
 
 			neighbor_info[threadIdx.x] = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
 		}
@@ -469,10 +466,10 @@ __global__ void conv_3d_outputdriven_shared_sparse(PCS *x, PCS *y, PCS *z, CUCPX
 							sh_c[j] = c[start_idx_full+j];
 						}
 						cur_hive_idx = SHARED_SIZE_3D_HIVE;
-						hive_index--;
+						// hive_index--;
 						flag--;
 					}
-					hive_index++;
+					// hive_index++;
 					break;
 				}
 			}
@@ -573,9 +570,6 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 		
 		int flag = 0; // first bit is for x, y, z later consider this issue
 	
-		// start_hive_idx[1] = cur_hive_idx - nhive_x - 1;
-		// start_hive_idx[2] = start_hive_idx[1] + nhive_x*nhive_y;
-		// start_hive_idx[0] = start_hive_idx[1] - nhive_x*nhive_y; 
 		
 		if(threadIdx.x<27){ // have a litter improvement
 			int cur_hive_x;
@@ -586,10 +580,10 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 			cur_hive_y = hive_y + threadIdx.x % 9 / 3 - 1;
 			cur_hive_x = hive_x + threadIdx.x % 3 - 1;
 
-			// some issues here
-			if(cur_hive_x >= nhive_x || cur_hive_x < 0) nhive_x<3? flag=1: cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
-			if(cur_hive_y >= nhive_y || cur_hive_y < 0) nhive_y<3? flag=1: cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
-			if(cur_hive_z >= nhive_z || cur_hive_z < 0) nhive_z<3? flag=1: cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+			// some issues here if nhive<3 we will not adopt this method
+			if(cur_hive_x >= nhive_x || cur_hive_x < 0)  cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+			if(cur_hive_y >= nhive_y || cur_hive_y < 0)  cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+			if(cur_hive_z >= nhive_z || cur_hive_z < 0)  cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
 
 			neighbor_info[threadIdx.x] = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
 		}
@@ -629,19 +623,16 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 						int start_idx_full = hive_count[neighbor_info[hive_index]] - flag * SHARED_SIZE_SEG;
 						for(int j = threadIdx.x; j<SHARED_SIZE_SEG; j+=blockDim.x){
 							// +++ shift here
-							// sh_x[j] = SHIFT_RESCALE(x[start_idx_full+j], nf1, pirange);
-							// sh_y[j] = SHIFT_RESCALE(y[start_idx_full+j], nf2, pirange);
-							// sh_z[j] = SHIFT_RESCALE(z[start_idx_full+j], nf3, pirange);
 							sh_x[j] = x[start_idx_full+j];
 							sh_y[j] = y[start_idx_full+j];
 							sh_z[j] = z[start_idx_full+j];
 							sh_c[j] = c[start_idx_full+j];
 						}
 						cur_hive_idx = SHARED_SIZE_SEG;
-						hive_index--;
+						// hive_index--;
 						flag--;
 					}
-					hive_index++;
+					// hive_index++;
 					break;
 				}
 			}
@@ -651,21 +642,22 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 				for(int i=0; i<cur_hive_idx; i++){
 					
 					// kernel evaluation
-					PCS ker;
+					// PCS ker;
 					PCS kervalue = 1.0;
 
 					PCS temp1 = abs(sh_x[i]-bin_x);
 					//++++ break if not in range
 					if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
+					// if(outidx==575&&i==491)printf("temp: %.6g\n",temp1);
 					if(temp1>=ns/2.0)continue; 
 
-					PCS temp2 = abs(sh_y[i]-bin_y);
-					if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
-					if(temp2>=ns/2.0)continue;
+					// PCS temp2 = abs(sh_y[i]-bin_y);
+					// if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
+					// if(temp2>=ns/2.0)continue;
 
-					PCS temp3 = abs(sh_z[i]-bin_z);
-					if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
-					if(temp3>=ns/2.0)continue;
+					// PCS temp3 = abs(sh_z[i]-bin_z);
+					// if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
+					// if(temp3>=ns/2.0)continue;
 
 					// if(outidx==3)printf("temp: %lf\n",temp1);
 					
@@ -673,20 +665,37 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					double dis = temp1 * ns_2 - num_s_1 * seg_idx;
 					seg_idx *= SEG_ORDER;
 					kervalue =sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
-					// if(outidx==3)printf("temp: %.12lf\n",kervalue);
-					// if(outidx==3)printf("%d, %lf, %lf\n",seg_idx, sh_c0[seg_idx], kervalue);
-					seg_idx = temp2 * seg_s;
-					dis = temp2 * ns_2 - num_s_1 * seg_idx;
+					
+					temp1 = abs(sh_y[i]-bin_y); // it will be faster just use one variable?
+					if(temp1>nf2/2.0)temp1 = abs(nf2 - temp1);
+					if(temp1>=ns/2.0)continue;
+					seg_idx = temp1 * seg_s;
+					dis = temp1 * ns_2 - num_s_1 * seg_idx;
 					seg_idx *= SEG_ORDER;
 					kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
 					
-					// kervalue *= c1[seg_idx]; 
-					// if(outidx==3)printf("%d, %lf\n",seg_idx, c0[seg_idx] + dis*(c1[seg_idx] + dis*(c2[seg_idx] + dis*c3[seg_idx])));
-
-					seg_idx = temp3 * seg_s;
-					dis = temp3 * ns_2 - num_s_1 * seg_idx;
+					temp1 = abs(sh_z[i]-bin_z);
+					if(temp1>nf3/2.0)temp1 = abs(nf3 - temp1);
+					if(temp1>=ns/2.0)continue;
+					seg_idx = temp1 * seg_s;
+					dis = temp1 * ns_2 - num_s_1 * seg_idx;
 					seg_idx *= SEG_ORDER;
 					kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
+					// if(outidx==575)printf("temp: %.6g\n",kervalue);
+					// if(outidx==575)printf("temp: %.12lf\n",kervalue);
+					// if(outidx==3)printf("%d, %lf, %lf\n",seg_idx, sh_c0[seg_idx], kervalue);
+					// seg_idx = temp2 * seg_s;
+					// dis = temp2 * ns_2 - num_s_1 * seg_idx;
+					// seg_idx *= SEG_ORDER;
+					// kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
+					
+					// // kervalue *= c1[seg_idx]; 
+					// // if(outidx==3)printf("%d, %lf\n",seg_idx, c0[seg_idx] + dis*(c1[seg_idx] + dis*(c2[seg_idx] + dis*c3[seg_idx])));
+
+					// seg_idx = temp3 * seg_s;
+					// dis = temp3 * ns_2 - num_s_1 * seg_idx;
+					// seg_idx *= SEG_ORDER;
+					// kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
 					// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
 					
 					// if(outidx==nf1*nf2-1)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);

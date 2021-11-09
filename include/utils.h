@@ -67,5 +67,5 @@ void histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *
 void mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
     int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int *nhive, int method);
 void taylor_series_approx_factors(PCS *c0, PCS *c1, PCS *c2, PCS *c3, double beta, int N);
-void taylor_series_approx_factors(PCS *c0, double beta, int N, int N_order);
+void taylor_series_approx_factors(PCS *c0, double beta, int N, int N_order, int func_type);
 #endif

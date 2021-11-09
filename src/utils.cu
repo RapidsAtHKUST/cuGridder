@@ -414,10 +414,10 @@ void taylor_series_approx_factors(PCS *c0, PCS *c1, PCS *c2, PCS *c3, double bet
   }
 }
 
-void taylor_series_approx_factors(PCS *c0, double beta, int N, int N_order){
+void taylor_series_approx_factors(PCS *c0, double beta, int N, int N_order, int func_type){
   for(int i=0; i<N; i++){
     double x = i / (double) N;
-    c0[i*N_order] = exp(beta*sqrt(1-x*x));
+    c0[i*N_order] = exp(beta*(sqrt(1-x*x)-func_type));
     c0[i*N_order+1] =  -beta*x*c0[i*N_order] / sqrt(1-x*x);
     c0[i*N_order+2] = - beta*(beta*x*x*pow((1-x*x),1.5) + x*x -1)*c0[i*N_order] / pow((1-x*x),1.5)/(x*x-1) /2;
     c0[i*N_order+3] = beta*x*(3*beta*pow((1-x*x),2.5)+beta*beta*pow(x,8)-3*beta*beta*pow(x,6)+(3*beta*beta-3)*pow(x,4)+(6-beta*beta)*x*x-3)*c0[i*N_order]/

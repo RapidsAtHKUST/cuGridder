@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     // PCS *fwkerhalf2 = (PCS*)malloc(sizeof(PCS)*(plan->nf2/2+1));
     // onedim_fseries_kernel_seq(plan->nf2, fwkerhalf2, plan->copts);
 
-	fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1/2+1);
+	fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1/2+1, 0);
     printf("correction factor printing...\n");
     PCS *corr = (PCS*) malloc(sizeof(PCS)*(plan->nf1/2+1));
     checkCudaErrors(cudaMemcpy(corr,plan->fwkerhalf1,sizeof(PCS)*(plan->nf1/2+1),cudaMemcpyDeviceToHost));
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
         printf("%.3lf ",corr[i]);
     }
     printf("\n");
-	fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2/2+1);
+	fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2/2+1, 0);
 
 #ifdef DEBUG
 	printf("nf1, nf2 %d %d\n",plan->nf1,plan->nf2);

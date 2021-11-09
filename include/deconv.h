@@ -10,9 +10,9 @@ extern "C"
 #else
 #include "../../contrib/legendre_rule_fast.h"
 #endif
-int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N);
-int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, int nf);
-int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N);
+int fourier_series_appro_invoker(PCS *fseries, conv_opts opts, int N, int func_type);
+int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, int nf, int func_type);
+int fourier_series_appro_invoker(PCS *fseries, PCS *k, conv_opts opts, int N, int func_type);
 int curafft_deconv(CURAFFT_PLAN *plan);
 
 // below this line, all contents ares pecified for radio astronomy

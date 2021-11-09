@@ -119,15 +119,15 @@ int cura_prestage(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
                 pre_stage_2_invoker(plan->ta.i_center, plan->ta.o_center, plan->ta.gamma, plan->ta.h, plan->d_w, NULL, NULL, plan->d_x, NULL, NULL, plan->d_c, gridder_plan->nrow,(N1 / 2 + 1) * (N2 / 2 + 1), 1, 1);
         }
 
-        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1 / 2 + 1);
-        fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2 / 2 + 1);
+        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1 / 2 + 1, plan->opts.gpu_kerevalmeth);
+        fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2 / 2 + 1, plan->opts.gpu_kerevalmeth);
         int w_term_method = 1;
         if (w_term_method)
         {
                 // improved_ws
                 checkCudaErrors(cudaFree(plan->fwkerhalf3));
                 checkCudaErrors(cudaMalloc((void **)&plan->fwkerhalf3, sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1)));
-                fourier_series_appro_invoker(plan->fwkerhalf3, plan->d_x, plan->copts, (N1 / 2 + 1) * (N2 / 2 + 1)); // correction with k, may be wrong, k will be free in this function
+                fourier_series_appro_invoker(plan->fwkerhalf3, plan->d_x, plan->copts, (N1 / 2 + 1) * (N2 / 2 + 1), plan->opts.gpu_kerevalmeth); // correction with k, may be wrong, k will be free in this function
         }
 
         // bin mapping
@@ -187,10 +187,10 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
        
 #ifdef DEBUG
         printf("conv result printing (first w plane)...\n");
-        CPX *fw = (CPX *)malloc(sizeof(CPX) * plan->nf1 * plan->nf2 * plan->nf3);
-        cudaMemcpy(fw, plan->fw, sizeof(CUCPX) * plan->nf1 * plan->nf2 * plan->nf3, cudaMemcpyDeviceToHost);
+        CPX *fw = (CPX *)malloc(sizeof(CPX) * plan->nf1 * plan->nf2 );
+        cudaMemcpy(fw, plan->fw, sizeof(CUCPX) * plan->nf1 * plan->nf2, cudaMemcpyDeviceToHost);
         PCS temp = 0;
-        for (int i = plan->nf1 * plan->nf2; i < 200; i++)
+        for (int i = 0; i < 200; i++)
         {
                 temp += fw[i].real();
                 printf("%.3g ", fw[i].real());
