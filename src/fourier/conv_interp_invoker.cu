@@ -299,6 +299,7 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.pirange);
     }
+    checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaFree(plan->hive_count));
     if(plan->opts.gpu_kerevalmeth)checkCudaErrors(cudaFree(plan->c0));
     
@@ -310,7 +311,6 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
         exit(1);
         // Possibly: exit(-1) if program cannot continue....
     }
-    checkCudaErrors(cudaDeviceSynchronize());
     // float milliseconds = 0;
 		// cudaEventRecord(stop);
 		// cudaEventSynchronize(stop);

@@ -325,18 +325,18 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 						temp3 = abs(temp3-bin_z);
 						if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
 						if(temp3>=ns/2.0)continue;
-						ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )-1));
+						ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 						// if(outidx==575)printf("1st %.12lf, %lf\n",ker,temp1);
 
 						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 
-						ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )-1));
+						ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
 						// if(outidx==575)printf("2nd %.12lf\n",ker);
 
 						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
-						ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )-1));
+						ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
 
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;

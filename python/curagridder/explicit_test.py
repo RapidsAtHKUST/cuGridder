@@ -67,7 +67,7 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
     np.random.seed(42)
     f0 = 1e9
     freq = f0 + np.arange(nchan)*(f0/nchan)
-    uvw = (np.random.rand(nrow, 3)-0.5)/(f0/speedoflight)
+    uvw = (np.random.rand(nrow, 3)-0.5)/(f0/speedoflight)/xpixsize
     ms = np.random.rand(nrow, nchan)-0.5 + 1j*(np.random.rand(nrow, nchan)-0.5)
     dirty = np.random.rand(nxdirty, nydirty)-0.5
     wgt = np.random.rand(nrow, nchan)
@@ -111,7 +111,7 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
 # test_against_wdft(10000000, 1, 2048, 2048, 2, 1e-12)
 # test_against_wdft(100000000, 1, 2048, 2048, 2, 1e-12)
 
-test_against_wdft(100000, 1, 4096, 4096, 2, 1e-12)
-test_against_wdft(1000000, 1, 4096, 4096, 2, 1e-12)
-test_against_wdft(10000000, 1, 4096, 4096, 2, 1e-12)
-test_against_wdft(100000000, 1, 4096, 4096, 2, 1e-12)
+test_against_wdft(100000, 1, 4096, 4096, 10, 1e-12)
+test_against_wdft(1000000, 1, 4096, 4096, 10, 1e-12)
+test_against_wdft(10000000, 1, 4096, 4096, 10, 1e-12)
+test_against_wdft(100000000, 1, 4096, 4096, 10, 1e-12)

@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 	}
 	int kerevalmeth = 0;
 	if(argc>5)sscanf(argv[7], "%d", &kerevalmeth);
-	int method=0;
+	int method=2;
 	if(argc>6)sscanf(argv[8], "%d", &method);
 
 	//gpu_method == 0, nupts driven
@@ -112,6 +112,15 @@ int main(int argc, char *argv[])
 	//printf("generated data, x[1] %2.2g, y[1] %2.2g , z[1] %2.2g, c[1] %2.2g\n",x[1] , y[1], z[1], c[1].real());
 
 	// Timing begin
+	cudaEvent_t cuda_start, cuda_end;
+
+	float kernel_time;
+
+	cudaEventCreate(&cuda_start);
+	cudaEventCreate(&cuda_end);
+
+	cudaEventRecord(cuda_start);
+
 	//data transfer
 	checkCudaErrors(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
 	checkCudaErrors(cudaMemcpy(d_v, v, M * sizeof(PCS), cudaMemcpyHostToDevice)); //v
@@ -133,13 +142,21 @@ int main(int argc, char *argv[])
     plan->opts.gpu_binsizex = -1;
     plan->opts.gpu_binsizey = -1;
     plan->opts.gpu_binsizez = -1;
-    plan->opts.gpu_kerevalmeth = 0;
+    plan->opts.gpu_kerevalmeth = kerevalmeth;
     plan->opts.gpu_conv_only = 0;
-    plan->opts.gpu_gridder_method = 2;
+    plan->opts.gpu_gridder_method = method;
 
     ier = setup_conv_opts(plan->copts, epsilon, sigma, 1, direction, kerevalmeth); //check the arguements
 
 	if(ier!=0)printf("setup_error\n");
+
+	if(kerevalmeth==1){
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
+        taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,kerevalmeth);
+		checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
+		checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
+        free(h_c0);
+    }
 
     // plan setting
     // cuda stream malloc in setup_plan
@@ -148,12 +165,12 @@ int main(int argc, char *argv[])
     int nf1 = get_num_cells(N1,plan->copts);
     int nf2 = get_num_cells(N2,plan->copts);
     int nf3 = get_num_cells(N3,plan->copts);
-    printf("nf3 %d\n",nf3);
+    // printf("nf3 %d\n",nf3);
     plan->dim = 3;
 	plan->type = 1;
-	show_mem_usage();
+	// show_mem_usage();
     setup_plan(nf1, nf2, nf3, M, d_u, d_v, d_w, d_c, plan);
-	show_mem_usage();
+	// show_mem_usage();
 
 	plan->ms = N1;
 	plan->mt = N2;
@@ -194,7 +211,7 @@ int main(int argc, char *argv[])
 	checkCudaErrors(cudaMalloc((void**)&d_fk,sizeof(CUCPX)*N1*N2*N3));
 	plan->fk = d_fk;
 
-	show_mem_usage();
+	// show_mem_usage();
     // prestage
     cura_prestage(plan);
 
@@ -299,6 +316,13 @@ int main(int argc, char *argv[])
 
 	CPX *fk = (CPX *)malloc(sizeof(CPX)*N1*N2*N3);
 	checkCudaErrors(cudaMemcpy(fk,plan->fk,sizeof(CUCPX)*N1*N2*N3, cudaMemcpyDeviceToHost));
+	cudaEventRecord(cuda_end);
+
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+
+	printf("Elapsed time: %.5g s\n",kernel_time/1000.0);
 	
 	// result printing
 	// printf("final result printing...\n");
