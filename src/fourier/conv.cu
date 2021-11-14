@@ -313,30 +313,30 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 						PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
 						temp1 = abs(temp1-bin_x);
 						//++++ break if not in range
-						if(temp1>nf1/2.0)temp1 = nf1 - temp1;
-						if(abs(temp1)>ns/2.0)continue; 
+						if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
+						if(temp1>=ns/2.0)continue; 
 
 						PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
 						temp2 = abs(temp2-bin_y);
-						if(temp2>nf2/2.0)temp2 = nf2 - temp2;
-						if(abs(temp2)>ns/2.0)continue;
+						if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
+						if(temp2>=ns/2.0)continue;
 
 						PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
 						temp3 = abs(temp3-bin_z);
-						if(temp3>nf3/2.0)temp3 = nf3 - temp3;
-						if(abs(temp3)>ns/2.0)continue;
-						ker = (abs(temp1) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )-1));
+						if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
+						if(temp3>=ns/2.0)continue;
+						ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )-1));
 						// if(outidx==575)printf("1st %.12lf, %lf\n",ker,temp1);
 
 						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 
-						ker = (abs(temp2) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )-1));
+						ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )-1));
 						// if(outidx==575)printf("2nd %.12lf\n",ker);
 
 						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
-						ker = (abs(temp3) >= ns / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )-1));
+						ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )-1));
 
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
@@ -651,13 +651,13 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					// if(outidx==575&&i==491)printf("temp: %.6g\n",temp1);
 					if(temp1>=ns/2.0)continue; 
 
-					// PCS temp2 = abs(sh_y[i]-bin_y);
-					// if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
-					// if(temp2>=ns/2.0)continue;
+					PCS temp2 = abs(sh_y[i]-bin_y);
+					if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
+					if(temp2>=ns/2.0)continue;
 
-					// PCS temp3 = abs(sh_z[i]-bin_z);
-					// if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
-					// if(temp3>=ns/2.0)continue;
+					PCS temp3 = abs(sh_z[i]-bin_z);
+					if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
+					if(temp3>=ns/2.0)continue;
 
 					// if(outidx==3)printf("temp: %lf\n",temp1);
 					
@@ -666,19 +666,19 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					seg_idx *= SEG_ORDER;
 					kervalue =sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
 					
-					temp1 = abs(sh_y[i]-bin_y); // it will be faster just use one variable?
-					if(temp1>nf2/2.0)temp1 = abs(nf2 - temp1);
-					if(temp1>=ns/2.0)continue;
-					seg_idx = temp1 * seg_s;
-					dis = temp1 * ns_2 - num_s_1 * seg_idx;
+					// temp1 = abs(sh_y[i]-bin_y); // it will be faster just use one variable?
+					// if(temp1>nf2/2.0)temp1 = abs(nf2 - temp1);
+					// if(temp1>=ns/2.0)continue;
+					seg_idx = temp2 * seg_s;
+					dis = temp2 * ns_2 - num_s_1 * seg_idx;
 					seg_idx *= SEG_ORDER;
 					kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
 					
-					temp1 = abs(sh_z[i]-bin_z);
-					if(temp1>nf3/2.0)temp1 = abs(nf3 - temp1);
-					if(temp1>=ns/2.0)continue;
-					seg_idx = temp1 * seg_s;
-					dis = temp1 * ns_2 - num_s_1 * seg_idx;
+					// temp1 = abs(sh_z[i]-bin_z);
+					// if(temp1>nf3/2.0)temp1 = abs(nf3 - temp1);
+					// if(temp1>=ns/2.0)continue;
+					seg_idx = temp3 * seg_s;
+					dis = temp3 * ns_2 - num_s_1 * seg_idx;
 					seg_idx *= SEG_ORDER;
 					kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
 					// if(outidx==575)printf("temp: %.6g\n",kervalue);

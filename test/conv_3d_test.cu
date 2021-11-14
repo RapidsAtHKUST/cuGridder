@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 		tol = (PCS)w; // so can read 1e6 right!
 	}
 
-	int kerevalmeth = 1;
+	int kerevalmeth = 0;
 	if (argc > 7)
 	{
 		sscanf(argv[7], "%d", &kerevalmeth);
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 
 	// opts and copts setting
 	h_plan->opts.gpu_conv_only = 1;
-	h_plan->opts.gpu_gridder_method = 4;
+	h_plan->opts.gpu_gridder_method = method;
 	h_plan->opts.gpu_kerevalmeth = kerevalmeth;
 	h_plan->opts.gpu_sort = 0;
 	h_plan->opts.upsampfac = sigma;
@@ -218,36 +218,36 @@ int main(int argc, char *argv[])
 	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
 
 	checkCudaErrors(cudaDeviceSynchronize());
-	checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
 
 	// int nf3 = h_plan->num_w;
 	printf("Method %d (nupt driven) %d NU pts to #%d U pts in %.5g s\n",
 		   h_plan->opts.gpu_gridder_method, M, nf1 * nf2 * nf3, kernel_time / 1000);
 
+	checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
 	curafft_free(h_plan);
 
-	std::cout << "[result-input]" << std::endl;
-	// ofstream myfile;
-  	// myfile.open ("result2.txt");
-	for (int k = 0; k < 1; k++)
-	{
-		for (int j = 0; j < nf2; j++)
-		{
-			for (int i = 0; i < nf1; i++)
-			{
-				printf(" (%2.3g,%2.3g)", fw[i + j * nf1 + k * nf2 * nf1].real(),
-					   fw[i + j * nf1 + k * nf2 * nf1].imag());
-				// myfile<<fw[i + j * nf1 + k * nf2 * nf1].real();
-				// myfile<<fw[i + j * nf1 + k * nf2 * nf1].imag();
-			}
-			// myfile<<"\n";
-			std::cout << std::endl;
-		}
-		std::cout << std::endl;
-		std::cout << "----------------------------------------------------------------" << std::endl;
+	// std::cout << "[result-input]" << std::endl;
+	// // ofstream myfile;
+  	// // myfile.open ("result2.txt");
+	// for (int k = 0; k < 1; k++)
+	// {
+	// 	for (int j = 0; j < nf2; j++)
+	// 	{
+	// 		for (int i = 0; i < nf1; i++)
+	// 		{
+	// 			printf(" (%2.3g,%2.3g)", fw[i + j * nf1 + k * nf2 * nf1].real(),
+	// 				   fw[i + j * nf1 + k * nf2 * nf1].imag());
+	// 			// myfile<<fw[i + j * nf1 + k * nf2 * nf1].real();
+	// 			// myfile<<fw[i + j * nf1 + k * nf2 * nf1].imag();
+	// 		}
+	// 		// myfile<<"\n";
+	// 		std::cout << std::endl;
+	// 	}
+	// 	std::cout << std::endl;
+	// 	std::cout << "----------------------------------------------------------------" << std::endl;
 
-	}
-	std::cout << "----------------------------------------------------------------" << std::endl;	
+	// }
+	// std::cout << "----------------------------------------------------------------" << std::endl;	
 	// myfile.close();
 	checkCudaErrors(cudaDeviceReset());
 	free(x);

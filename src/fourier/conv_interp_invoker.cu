@@ -137,6 +137,12 @@ int bin_mapping(CURAFFT_PLAN *plan){
       nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
       nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
       nhive[2] = (nf3-1)/plan->hivesize[2] + 1;
+
+      if((nhive[0]<3||nhive[1]<3||nhive[2]<3)&&method!=2){
+        printf("exit one hive size smaller than 3, automatically switch to method 2\n");
+        method = 2;
+        plan->opts.gpu_gridder_method = 2;
+      }
     
       unsigned long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
       histo_count_size *= nhive[1]*plan->hivesize[1];
