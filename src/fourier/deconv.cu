@@ -279,8 +279,9 @@ __global__ void deconv_3d(int N1, int N2, int N3, int nf1, int nf2, int nf3, CUC
 	CUCPX *fk, PCS *fwkerhalf1, PCS *fwkerhalf2, PCS *fwkerhalf3, int flag, int type)
 {
     int idx;
-    int nmodes = N1*N2*N3;
-    int k1, k2, k3, idx_fw, w1, w2, w3;
+    unsigned long int nmodes = N1*N2*N3;
+    int k1, k2, k3, w1, w2, w3;
+    unsigned long long int idx_fw;
 	for(idx=blockDim.x*blockIdx.x+threadIdx.x; idx<nmodes; idx+=blockDim.x*
 		gridDim.x){
 		k1 = idx % N1;
@@ -298,7 +299,9 @@ __global__ void deconv_3d(int N1, int N2, int N3, int nf1, int nf2, int nf3, CUC
             w2 = k2 >= N2/2 ? nf2+k2-N2 : k2;
             w3 = k3 >= N3/2 ? nf3+k3-N3 : k3;
         }
-	    idx_fw = w1 + w2*nf1 + w3*nf1*nf2;
+	    idx_fw = nf1*nf2;
+        idx_fw *=  w3;
+        idx_fw += w1 + w2*nf1;
 
 		PCS kervalue = fwkerhalf1[abs(k1-N1/2)]*fwkerhalf2[abs(k2-N2/2)]*
 			fwkerhalf3[abs(k3-N3/2)];
@@ -387,7 +390,8 @@ __global__ void w_term_deconv(int N1, int N2, CUCPX* fk, PCS* fwkerhalf, PCS i_c
     for(idx = blockIdx.x*blockDim.x + threadIdx.x; idx < nmodes; idx+=gridDim.x*blockDim.x){
         int row = idx / N1;
         int col = idx % N1;
-        PCS phase = ((sqrt(1.0 - pow((row-N2/2)*xpixelsize,2) - pow((col-N1/2)*ypixelsize,2)) - 1)-o_center)*i_center*flag; // caused by shifting ({i*(u+u_c)*x_c})
+        PCS tmp = 1.0 - pow((row-N2/2)*xpixelsize,2) - pow((col-N1/2)*ypixelsize,2);
+        PCS phase = tmp<0?((sqrt(-tmp) - 1)-o_center)*i_center*flag:((sqrt(tmp) - 1)-o_center)*i_center*flag; // caused by shifting ({i*(u+u_c)*x_c}) if beyond horizon temp = -temp, not know what to do
 
         idx_fw = abs(col-N1/2)+abs(row-N2/2)*(N1/2+1);
         // if(idx==0)printf("gpu fwkerhalf %.10g, exp .real %.10g sin %.10g,  %.10g\n",fwkerhalf[idx_fw], cos(phase), sin(phase), (fk[idx].x*cos(phase)-fk[idx].y*sin(phase)) / fwkerhalf[idx_fw]);

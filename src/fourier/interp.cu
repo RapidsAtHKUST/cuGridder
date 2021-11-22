@@ -146,7 +146,7 @@ __global__ void interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 	int idx;
 	idx = blockDim.x * blockIdx.x + threadIdx.x;
 	int xx, yy, zz, ix, iy, iz;
-	int indx;
+	unsigned int indx;
 
 	PCS ker1[MAX_KERNEL_WIDTH];
 	PCS ker2[MAX_KERNEL_WIDTH];
@@ -154,7 +154,7 @@ __global__ void interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 
 	PCS temp1, temp2, temp3;
 
-	assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
+	// assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
 
 	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
 	{
@@ -192,7 +192,9 @@ __global__ void interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 					ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
 					iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
 					iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
-					indx = ix + iy * nf1 + iz * nf1 * nf2;
+					indx = nf1 * nf2;
+					indx *= iz;
+					indx += ix + iy * nf1;
 
 					temp1 = ker1[xx - xstart];
 					PCS kervalue = temp1 * temp2 * temp3;

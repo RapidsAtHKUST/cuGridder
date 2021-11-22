@@ -56,7 +56,8 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
     PCS m_max = m_min + ypixelsize * (N1 - 1);
 
     //double upsampling_fac = copts.upsampfac;
-    PCS n_lm = sqrt(1.0 - pow(l_min, 2) - pow(m_min, 2));
+    PCS temp = 1.0 - pow(l_min, 2) - pow(m_min, 2);
+    PCS n_lm = temp<=0? 0: sqrt(temp); //beyond the horizon
     
     // nshift = (no_nshift||(!do_wgridding)) ? 0. : -0.5*(nm1max+nm1min);
 
@@ -74,6 +75,7 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
     
     // get number of w planes, scaling ratio gamma
     set_nhg_w(plan->ta.o_half_width[0], plan->ta.i_half_width[0], plan->copts, plan->nf1, plan->ta.h[0], plan->ta.gamma[0]); //temporately use nf1
+    if(plan->nf1>32)plan->nf1 = 32; // will exceed the memroy size
 #ifdef INFO
     printf("U_width %lf, U_center %lf, X_width %.10lf, X_center %.10lf, gamma %lf, nf %d, h %lf\n",
            plan->ta.i_half_width[0], plan->ta.i_center[0], plan->ta.o_half_width[0], plan->ta.o_center[0], plan->ta.gamma[0], plan->nf1, plan->ta.h[0]);
@@ -131,9 +133,10 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     plan->opts.gpu_kerevalmeth = kerevalmeth;
     plan->opts.gpu_conv_only = 0;
     plan->opts.gpu_gridder_method = method;
+    plan->copts.pirange = 0; // uvw not in pi range
 
     
-    ier = setup_conv_opts(plan->copts, tol, sigma, 1, direction, kerevalmeth); //check the arguements pirange = 1
+    ier = setup_conv_opts(plan->copts, tol, sigma, plan->copts.pirange, direction, kerevalmeth); //check the arguements pirange = 1
     
    if(kerevalmeth==1){
         PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
@@ -222,8 +225,10 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
         batchsize = MAX_CUFFT_ELEM/plan->nf1/plan->nf2;
         cufftHandle fftplanl;
         int remain_batch = plan->nf3%batchsize;
-        cufftPlanMany(&fftplanl, 2, n, inembed, 1, inembed[0] * inembed[1],
-                  onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, remain_batch);
+        if(remain_batch!=0){
+            cufftPlanMany(&fftplanl, 2, n, inembed, 1, inembed[0] * inembed[1],
+                    onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, remain_batch);
+        }
         plan->fftplan_l = fftplanl;
     }
     // check, multi cufft for different w ??? how to set
@@ -342,27 +347,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     cudaEventRecord(start);
 #endif
     //------------transpose uvw------------
-
-    PCS *d_uvw;
-    CUCPX *d_vis;
-    checkCudaErrors(cudaMalloc((void**)&d_uvw, 3 * nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMemcpy(d_uvw,uvw,3 * nrow * sizeof(PCS),cudaMemcpyHostToDevice));
-    matrix_transpose_invoker(d_uvw,3,nrow); // will use a temp arr with same size as uvw
-    checkCudaErrors(cudaMalloc((void**)&d_vis, nrow * sizeof(CUCPX)));
-    checkCudaErrors(cudaMemcpy(d_vis,  vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
-    
-    //------------device memory malloc------------
-    PCS *d_u, *d_v, *d_w;
-    d_u = d_uvw;
-    d_v = d_uvw+nrow;
-    d_w = d_uvw+2*nrow;
-
-    PCS *f_over_c = (PCS*) malloc(sizeof(PCS));
-    f_over_c[0] = freq / SPEEDOFLIGHT;
-
-    /* -------------- cugridder-----------------*/
-	// plan setting
-	CURAFFT_PLAN *plan;
+    CURAFFT_PLAN *plan;
 
 	ragridder_plan *gridder_plan;
 
@@ -370,6 +355,25 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     gridder_plan = new ragridder_plan();
     memset(plan, 0, sizeof(CURAFFT_PLAN));
     memset(gridder_plan, 0, sizeof(ragridder_plan));
+    
+    CUCPX *d_vis;
+    checkCudaErrors(cudaMalloc((void**)&gridder_plan->d_uvw, 3 * nrow * sizeof(PCS)));
+    checkCudaErrors(cudaMemcpy(gridder_plan->d_uvw,uvw,3 * nrow * sizeof(PCS),cudaMemcpyHostToDevice));
+    matrix_transpose_invoker(gridder_plan->d_uvw,3,nrow); // will use a temp arr with same size as uvw
+    checkCudaErrors(cudaMalloc((void**)&d_vis, nrow * sizeof(CUCPX)));
+    checkCudaErrors(cudaMemcpy(d_vis,  vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    
+    //------------device memory malloc------------
+    PCS *d_u, *d_v, *d_w;
+    d_u = gridder_plan->d_uvw;
+    d_v = gridder_plan->d_uvw+nrow;
+    d_w = gridder_plan->d_uvw+2*nrow;
+
+    PCS *f_over_c = (PCS*) malloc(sizeof(PCS));
+    f_over_c[0] = freq / SPEEDOFLIGHT;
+
+    /* -------------- cugridder-----------------*/
+	// plan setting
 	
 	visibility *pointer_v;
 	pointer_v = (visibility *)malloc(sizeof(visibility));
@@ -382,8 +386,10 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
 	pointer_v->pirange = 0;
     pointer_v->sign = sign;
 	int direction = 1; //vis to image
+    int method = 4;
+    int kerevalmeth = 1;
     //---------STEP1: gridder setting---------------
-    ier = gridder_setting(nydirty,nxdirty,0,0,1,epsilon,direction,sigma,0,1,nrow,1,fov,pointer_v,d_u,d_v,d_w,d_vis
+    ier = gridder_setting(nydirty,nxdirty,method,kerevalmeth,1,epsilon,direction,sigma,0,1,nrow,1,fov,pointer_v,d_u,d_v,d_w,d_vis
 		,plan,gridder_plan);
     //print the setting result
 	free(pointer_v);
@@ -421,7 +427,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
 		return ier;
 	}
     //---------STEP3: gridder destroy-----------------
-    checkCudaErrors(cudaFree(d_uvw));
+    if(method==0)checkCudaErrors(cudaFree(gridder_plan->d_uvw));
     ier = py_gridder_destroy(plan,gridder_plan);
 	if(ier == 1){
 		printf("errors in gridder destroy\n");
@@ -511,8 +517,10 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
 
     plan->fk = d_dirty;
 	int direction = 0; 
+    int method = 0;
+    int kerevalmeth = 0;
     //---------STEP1: gridder setting---------------
-    ier = gridder_setting(nydirty,nxdirty,0,0,1,epsilon,direction,sigma,-1,1,nrow,1,fov,pointer_v,d_u,d_v,d_w,NULL
+    ier = gridder_setting(nydirty,nxdirty,method,kerevalmeth,1,epsilon,direction,sigma,-1,1,nrow,1,fov,pointer_v,d_u,d_v,d_w,NULL
 		,plan,gridder_plan);
 	free(pointer_v);
 	if(ier == 1){

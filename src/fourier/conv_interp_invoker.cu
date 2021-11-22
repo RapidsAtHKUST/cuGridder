@@ -117,7 +117,7 @@ int setup_conv_opts(conv_opts &opts, PCS eps, PCS upsampfac, int pirange, int di
   return ier;
 }
 
-int bin_mapping(CURAFFT_PLAN *plan){
+int bin_mapping(CURAFFT_PLAN *plan, PCS *uvw){
   // +++++++ method and hivesize /// later support other dim 1,2 +++ dim condition 
   if(plan->dim==3){
     int M = plan->M;
@@ -186,10 +186,15 @@ int bin_mapping(CURAFFT_PLAN *plan){
       }
       if(method == 1)checkCudaErrors(cudaFree(plan->se_loc));
     }
-    checkCudaErrors(cudaFree(plan->d_u));
-    checkCudaErrors(cudaFree(plan->d_v));
-    checkCudaErrors(cudaFree(plan->d_w));
-    checkCudaErrors(cudaFree(plan->d_c));
+    if(uvw==NULL){
+      checkCudaErrors(cudaFree(plan->d_u));
+      checkCudaErrors(cudaFree(plan->d_v));
+      checkCudaErrors(cudaFree(plan->d_w));
+      checkCudaErrors(cudaFree(plan->d_c));
+    }
+    else{
+      checkCudaErrors(cudaFree(uvw));
+    }
     checkCudaErrors(cudaFree(plan->sortidx_bin));
     checkCudaErrors(cudaFree(plan->histo_count));
     plan->d_u = d_u_out;
@@ -353,8 +358,11 @@ int curafft_conv(CURAFFT_PLAN * plan)
       // show_mem_usage();
       // printf("size %d\n", plan->nf1*plan->nf2*plan->nf3);
       if(plan->fw==NULL){
-        checkCudaErrors(cudaMalloc(&plan->fw, plan->nf1*plan->nf2*plan->nf3 * sizeof(CUCPX)));
-        checkCudaErrors(cudaMemset(plan->fw,0, plan->nf1*plan->nf2*plan->nf3 * sizeof(CUCPX)));
+        unsigned long long int fw_size = plan->nf1;
+        fw_size *= plan->nf2;
+        fw_size *= plan->nf3;
+        checkCudaErrors(cudaMalloc(&plan->fw, fw_size * sizeof(CUCPX)));
+        checkCudaErrors(cudaMemset(plan->fw,0, fw_size * sizeof(CUCPX)));
       }
       // show_mem_usage();
       conv_3d_invoker(nf1, nf2, nf3, M, plan);

@@ -5,7 +5,7 @@ CXX  = g++
 NVCC = nvcc
 
 #set based on GPU card, sm_60 (Tesla P100) or sm_61 (consumer Pascal) or sm_70 (Tesla V100, Titan V) or sm_80 (A100)
-NVARCH ?= -arch=sm_70 
+NVARCH ?= -arch=sm_80 
 # NVARCH ?= -gencode=arch=compute_70,code=sm_70
 
 
@@ -17,7 +17,7 @@ NVCCFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) -Wno-deprecated-gpu-targets 
 
 
 #NVCCFLAGS+= -DINFO -DDEBUG -DRESULT -DTIME
-NVCCFLAGS+= -DTIME
+# NVCCFLAGS+= -DTIME
 
 #set your cuda path
 CUDA_ROOT := /usr/local/cuda
@@ -221,7 +221,7 @@ checkutils: utiltest
 
 checkwst: w_s_test
 	@echo "W stacking checking..."
-	bin/w_s_gridder_test 2 1 4096 4096 100000000 10
+	bin/w_s_gridder_test 4 1 4096 4096 100000000 10
 	bin/w_s_degridder_test 0 1 100 100 10000 10
 # bin/w_s_test 0 1 5000 5000 50000000 10
 

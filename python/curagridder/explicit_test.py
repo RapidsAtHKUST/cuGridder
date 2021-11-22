@@ -1,4 +1,5 @@
-from ducc0.wgridder import ms2dirty, dirty2ms
+# from ducc0.wgridder import ms2dirty, dirty2ms
+from curig import ms2dirty, dirty2ms
 import numpy as np
 import time
 # import pytest
@@ -68,20 +69,21 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
     f0 = 1e9
     freq = f0 + np.arange(nchan)*(f0/nchan)
     uvw = (np.random.rand(nrow, 3)-0.5)/(f0/speedoflight)/xpixsize
+    uvw[:,2] = (np.random.rand(nrow,)-0.5)/(f0/speedoflight)
     ms = np.random.rand(nrow, nchan)-0.5 + 1j*(np.random.rand(nrow, nchan)-0.5)
     dirty = np.random.rand(nxdirty, nydirty)-0.5
     wgt = np.random.rand(nrow, nchan)
     
     print("begin")
     start = time.time()
-    dirty2 = ms2dirty(uvw,freq, ms, None, nxdirty, nydirty, xpixsize, ypixsize, 0, 0, epsilon, True, 32)
+    dirty2 = ms2dirty(uvw,freq, ms, None, nxdirty, nydirty, xpixsize, ypixsize, 0, 0, epsilon, True, 64)
     end = time.time()
     print("The elapsed time {} (sec)".format(end-start))
     print("Execution finished")
     dirty2 = np.reshape(dirty2,[nxdirty,nydirty])
     ms2 = np.zeros((nrow,1),dtype=np.complex128)
     start = time.time()
-    ms2 = dirty2ms(uvw,freq, dirty, None, xpixsize, ypixsize, 0, 0, epsilon, True, 32)
+    ms2 = dirty2ms(uvw,freq, dirty, None, xpixsize, ypixsize, 0, 0, epsilon, True, 64)
     end = time.time()
     print("The elapsed time {} (sec)".format(end-start))
     print("Execution finished")
@@ -111,7 +113,7 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
 # test_against_wdft(10000000, 1, 2048, 2048, 2, 1e-12)
 # test_against_wdft(100000000, 1, 2048, 2048, 2, 1e-12)
 
-test_against_wdft(100000, 1, 4096, 4096, 10, 1e-12)
-test_against_wdft(1000000, 1, 4096, 4096, 10, 1e-12)
-test_against_wdft(10000000, 1, 4096, 4096, 10, 1e-12)
-test_against_wdft(100000000, 1, 4096, 4096, 10, 1e-12)
+test_against_wdft(100000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(1000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(10000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(100000000, 1, 2048, 2048, 10, 1e-12)

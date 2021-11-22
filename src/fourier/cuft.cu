@@ -142,11 +142,14 @@ int cura_prestage(CURAFFT_PLAN *plan){
             fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3/2+1, plan->opts.gpu_kerevalmeth);
         }
         // binmapping
-        if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan); //currently just support 3d
+        if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,NULL); //currently just support 3d
 
         // fw malloc
-        checkCudaErrors(cudaMalloc((void**)&plan->fw, nf1 * nf2 * nf3 * sizeof(CUCPX)));
-        checkCudaErrors(cudaMemset(plan->fw, 0, nf1 * nf2 * nf3 * sizeof(CUCPX)));
+        unsigned long long int fw_size = plan->nf1;
+        fw_size *= plan->nf2;
+        fw_size *= plan->nf3;
+        checkCudaErrors(cudaMalloc((void**)&plan->fw, fw_size * sizeof(CUCPX)));
+        checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
     }
     return 0;
 }
@@ -605,7 +608,7 @@ __global__ void w_term_idft(CUCPX *fw, int nf1, int nf2, int nf3, int N1, int N2
         // int plane = idx / (N1 * N2);
         int row = idx / N1;
         int col = idx % N1;
-        int idx_fw = 0;
+        unsigned long long int idx_fw = 0;
         int w1 = 0;
         int w2 = 0;
 
@@ -623,7 +626,11 @@ __global__ void w_term_idft(CUCPX *fw, int nf1, int nf2, int nf3, int N1, int N2
             PCS phase = flag * z[idx_z] * (plane-nf3/2); 
             temp.x = fw[idx_fw].x * cos(phase) - fw[idx_fw].y * sin(phase);
             temp.y = fw[idx_fw].x * sin(phase) + fw[idx_fw].y * cos(phase);
-            fw[idx_fw + plane*nf1*nf2] = temp;
+            unsigned long long int other_idx = nf2;
+            other_idx *= nf1;
+            other_idx *= plane;
+            other_idx += idx_fw;
+            fw[other_idx] = temp;
         }
         PCS phase = flag * z[idx_z] * (-nf3/2); 
         temp.x = fw[idx_fw].x * cos(phase) - fw[idx_fw].y * sin(phase);

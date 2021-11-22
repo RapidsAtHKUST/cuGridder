@@ -217,7 +217,8 @@ __global__ void k_generation(PCS *k, int N1, int N2, PCS xpixelsize, PCS ypixels
     {
         int row = idx / (N1 / 2 + 1);
         int col = idx % (N1 / 2 + 1);
-        k[idx] = (sqrt(1.0 - pow(row * xpixelsize, 2) - pow(col * ypixelsize, 2)) - 1);
+        PCS temp = 1.0 - pow(row * xpixelsize, 2) - pow(col * ypixelsize, 2);
+        k[idx] = temp<0? sqrt(-temp) - 1:sqrt(temp) - 1; //if beyond horizon temp = -temp, not know what to do
     }
 }
 

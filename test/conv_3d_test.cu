@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
 
 	cudaEventRecord(cuda_start);
 	if(h_plan->opts.gpu_gridder_method){
-        bin_mapping(h_plan);
+        bin_mapping(h_plan,NULL);
     }
 	cudaEventRecord(cuda_end);
 

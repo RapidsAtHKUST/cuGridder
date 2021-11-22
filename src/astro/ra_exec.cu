@@ -131,11 +131,14 @@ int cura_prestage(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
         }
 
         // bin mapping
-        if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan); //currently just support 3d
+        if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,gridder_plan->d_uvw); //currently just support 3d //uvw or u?
 
         // fw malloc
-        checkCudaErrors(cudaMalloc((void**)&plan->fw, plan->nf1 * plan->nf2 * plan->nf3 * sizeof(CUCPX)));
-        checkCudaErrors(cudaMemset(plan->fw, 0, plan->nf1 * plan->nf2 * plan->nf3 * sizeof(CUCPX)));
+        unsigned long long int fw_size = plan->nf1;
+        fw_size *= plan->nf2;
+        fw_size *= plan->nf3;
+        checkCudaErrors(cudaMalloc((void**)&plan->fw, fw_size * sizeof(CUCPX)));
+        checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
 
         return ier;
 }
