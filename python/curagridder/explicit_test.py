@@ -113,7 +113,7 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
 # test_against_wdft(10000000, 1, 2048, 2048, 2, 1e-12)
 # test_against_wdft(100000000, 1, 2048, 2048, 2, 1e-12)
 
-test_against_wdft(100000, 1, 2048, 2048, 10, 1e-12)
-test_against_wdft(1000000, 1, 2048, 2048, 10, 1e-12)
-test_against_wdft(10000000, 1, 2048, 2048, 10, 1e-12)
-test_against_wdft(100000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(100000, 1, 4096, 4096, 10, 1e-12)
+# test_against_wdft(1000000, 1, 2048, 2048, 10, 1e-12)
+# test_against_wdft(10000000, 1, 2048, 2048, 10, 1e-12)
+# test_against_wdft(100000000, 1, 2048, 2048, 10, 1e-12)

@@ -137,6 +137,7 @@ __global__ void final_hive_plane_histo(PCS *x, PCS *y, PCS *z, int *sortidx_bin,
     bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
 		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
 		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
+    // if(idx<100)printf("----------%.6lf,%.6lf,%.6lf %d, %d, %d\n",x[idx],y[idx],z[idx], bin_x, bin_y, bin_z);
     int hive_x = bin_x / hivesize_x;
     int hive_y = bin_y / hivesize_y;
     // int hive_z = bin_z / hivesize_z;
@@ -188,6 +189,7 @@ void final_hive_plane_bin_mapping(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, 
     int *sortidx_bin, int *histo_count, int *hive_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int pirange){
   int plane = nf3 - 8;
   int blocksize = 256;
+  // printf("1111\n");
   final_hive_plane_histo<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], plane, pirange);
   checkCudaErrors(cudaDeviceSynchronize());
   prefix_scan(histo_count,histo_count,nhive[0]*nhive[1]*hivesize[0]*hivesize[1]*hivesize[2]+1,0);
@@ -300,6 +302,7 @@ __global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, P
 
       int loc = sortidx_bin[idx]+histo_count[histo_idx]+init_scan_value;
       // if(abs(x[idx]-0.152601)<0.0001)printf("-------loc %d\n",loc);
+      // if(loc==91444)printf("%lf %lf %lf %d %d %d\n",x1,y1,z1,bin_x,bin_y,bin_z);
       x_out[loc] = x1;
       y_out[loc] = y1;
       z_out[loc] = z1;

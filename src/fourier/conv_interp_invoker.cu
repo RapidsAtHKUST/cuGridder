@@ -273,10 +273,18 @@ int part_bin_mapping(CURAFFT_PLAN *plan, PCS *d_u_out, PCS *d_v_out, PCS *d_w_ou
     int last_value;
     checkCudaErrors(cudaMemcpy(&last_value,plan->histo_count+histo_count_size-1,sizeof(int),cudaMemcpyDeviceToHost));
     counting_hive_invoker(hive_count, plan->histo_count, hive_count_size, plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2],initial);
+    // if(cube_id==3){
+    //   int *h_hive_count = (int *) malloc(sizeof(int)*hive_count_size);
+    //   checkCudaErrors(cudaMemcpy(h_hive_count,plan->hive_count,sizeof(int)*hive_count_size,cudaMemcpyDeviceToHost));
+    //   for(int ii=0; ii<1024;ii++){
+    //     printf("%d ",h_hive_count[ii]);
+    //   }
+    //   printf("\n");
+    // }
     part_mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,plan->mem_limit,plan->hivesize,nhive,cube_id,nf3,initial,plan->copts.pirange);
     initial += last_value;
   // }
-  checkCudaErrors(cudaFree(plan->sortidx_bin));
+  // checkCudaErrors(cudaFree(plan->sortidx_bin));
   // checkCudaErrors(cudaFree(plan->histo_count));
   return 0;
 }
@@ -312,6 +320,7 @@ int part_bin_mapping_pre(CURAFFT_PLAN *plan, int *temp_station, int &initial){
   // save the first hive plane for final hive
   checkCudaErrors(cudaMemcpy(temp_station,plan->hive_count,sizeof(int)*nhive[0]*nhive[1]+1,cudaMemcpyDeviceToHost));
   checkCudaErrors(cudaFree(plan->histo_count));
+  checkCudaErrors(cudaFree(plan->sortidx_bin));
 
   // set histro 0 and repeat until the last cube
   return 0;
@@ -588,7 +597,7 @@ int curafft_interp(CURAFFT_PLAN * plan)
   return ier;
 }
 
-int partial_conv_3d_invoker(int nf1, int nf2, int nf3, int M, int up_shift, int c_shift, int down_shift, CURAFFT_PLAN *plan){
+int partial_conv_3d_invoker(int nf1, int nf2, int nf3, int M, int init_shift, int up_shift, int c_shift, int down_shift, CURAFFT_PLAN *plan){
   dim3 grid;
   dim3 block;
   int method = plan->opts.gpu_gridder_method;
@@ -602,7 +611,7 @@ int partial_conv_3d_invoker(int nf1, int nf2, int nf3, int M, int up_shift, int 
   if(method==2)
   partial_conv_3d_outputdriven<<<grid, block>>>(plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, plan->fw, plan->hive_count, plan->copts.kw, 
                                         nf1, nf2, nf3, plan->mem_limit, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
-                                        nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange, up_shift, c_shift, down_shift);
+                                        nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange, init_shift, up_shift, c_shift, down_shift);
 
   else if(method==4){
     // PCS *h_lut = (PCS *)malloc(sizeof(PCS)*LOOKUP_TABLE_SIZE);
@@ -610,7 +619,7 @@ int partial_conv_3d_invoker(int nf1, int nf2, int nf3, int M, int up_shift, int 
     // set_ker_eval_lut(h_lut);
     partial_conv_3d_outputdriven_shared_hive_lut<<<grid, block>>>(plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, plan->fw, plan->c0, plan->hive_count, plan->copts.kw, 
                                         nf1, nf2, nf3, plan->mem_limit, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
-                                        nhive[0], nhive[1], nhive[2], plan->copts.pirange, up_shift, c_shift, down_shift);
+                                        nhive[0], nhive[1], nhive[2], plan->copts.pirange, init_shift, up_shift, c_shift, down_shift);
   }
   else {printf("please select other methods\n"); return 1;}
   checkCudaErrors(cudaDeviceSynchronize());
@@ -629,7 +638,7 @@ int partial_conv_3d_invoker(int nf1, int nf2, int nf3, int M, int up_shift, int 
 }
 
 
-int curaff_partial_conv(CURAFFT_PLAN *plan, int up_shift, int c_shift, int down_shift){
+int curaff_partial_conv(CURAFFT_PLAN *plan, int init_shift, int up_shift, int c_shift, int down_shift){
   
   int ier = 0;
   int nf1 = plan->nf1;
@@ -639,7 +648,8 @@ int curaff_partial_conv(CURAFFT_PLAN *plan, int up_shift, int c_shift, int down_
   if(plan->fw==NULL){
     printf("error, not assign mem for fw\n");
   }
-  ier = partial_conv_3d_invoker(nf1, nf2, nf3, M, up_shift, c_shift, down_shift, plan);
+
+  ier = partial_conv_3d_invoker(nf1, nf2, nf3, M, init_shift, up_shift, c_shift, down_shift, plan);
 
   return ier;
 }

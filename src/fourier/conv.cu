@@ -725,7 +725,8 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 // }
 
 __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
-	 int nf3, int nf3_total, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange, int up_shift, int c_shift, int down_shift){
+	 int nf3, int nf3_total, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange,
+	 int init_shift, int up_shift, int c_shift, int down_shift){
 	/*
 		blocksize = 8*8*8 if change may need to revise
 		another method also load intput into shared memroy by multi times
@@ -783,7 +784,7 @@ __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, C
 					// if(cur_hive_z >= nhive_z || cur_hive_z < 0) nhive_z<3? flag=0: cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
 					// if(outidx==616)printf("%d,%d,%d,%d\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z);
 					if (flag==0) continue; // exceeding the boundart and nf < 3
-					if(cur_hive_z = nhive_z){
+					if(cur_hive_z == nhive_z){
 						// calculate cur_hive_idx
 						cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + down_shift;
 					}
@@ -796,24 +797,27 @@ __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, C
 					//if(cur_hive_idx>=nhive_x*nhive_y*nhive_z||cur_hive_idx<0)printf("%d,%d,%d,%d,%d ",cur_hive_idx, hive_x,hive_y, hive_z,flag);
 					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
 						// kernel evaluation
+						// if(k==91444&&blockIdx.x==3)printf("%d %d %d\n",bin_x,bin_y,bin_z);
 						PCS ker;
 						PCS kervalue = 1.0;
-
 						PCS temp1 = x[k]; //save
 						temp1 = abs(temp1-bin_x);
 						//++++ break if not in range
 						if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
 						if(temp1>=ns/2.0)continue; 
+						// if(k==91444&&blockIdx.x==3&&bin_x==31&&bin_y==4&&bin_z==2)printf("temp1 %lf\n",temp1);
 
 						PCS temp2 = y[k];
 						temp2 = abs(temp2-bin_y);
 						if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
 						if(temp2>=ns/2.0)continue;
+						// if(k==91444&&blockIdx.x==3&&bin_x==31&&bin_y==4&&bin_z==2)printf("temp1 %lf\n",temp2);
 
 						PCS temp3 = z[k]; // +++ 
-						temp3 = abs(temp3-bin_z);
+						temp3 = abs(temp3-bin_z-init_shift);
 						if(temp3>nf3_total/2.0)temp3 = abs(nf3_total - temp3);
 						if(temp3>=ns/2.0)continue;
+						if(k==91444&&blockIdx.x==3&&bin_x==31&&bin_y==4&&bin_z==2)printf("temp1 %lf\n",temp3);
 						ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 						// if(outidx==575)printf("1st %.12lf, %lf\n",ker,temp1);
 
@@ -830,7 +834,7 @@ __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, C
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 						// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
-						
+						// if(k==91444)printf("%d, %lf %d\n",cur_hive_idx,x[k],bin_x);
 						// if(outidx==nf1*nf2-1)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);
 						fw[outidx].x += c[k].x * kervalue;
 						fw[outidx].y += c[k].y * kervalue;
@@ -844,7 +848,7 @@ __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, C
 }
 
 __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, PCS *c0, int* hive_count, const int ns, int nf1, int nf2,
-	 int nf3, int nf3_total, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, int pirange, int up_shift, int c_shift, int down_shift){
+	 int nf3, int nf3_total, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, int pirange, int init_shift, int up_shift, int c_shift, int down_shift){
 	/*
 		blocksize = 8*8*8 if change may need to revise
 		another method also load intput into shared memroy by multi times
@@ -983,7 +987,7 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 					if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
 					if(temp2>=ns/2.0)continue;
 
-					PCS temp3 = abs(sh_z[i]-bin_z);
+					PCS temp3 = abs(sh_z[i]-bin_z-init_shift);
 					if(temp3>nf3_total/2.0)temp3 = abs(nf3_total - temp3);
 					if(temp3>=ns/2.0)continue;
 

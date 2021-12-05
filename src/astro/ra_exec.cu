@@ -276,11 +276,14 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                 int up_shift, c_shift, down_shift;
                 for(i=0; i<(plan->mem_limit-1)/plan->nf3; i++){
                         show_mem_usage();
+                        checkCudaErrors(cudaFree(plan->fw));
                         checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
                         checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
                         part_bin_mapping(plan, plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, histo_count_size, i+1, plan->initial);
                         checkCudaErrors(cudaFree(plan->histo_count));
-
+                        checkCudaErrors(cudaFree(plan->sortidx_bin));
+                        checkCudaErrors(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * plan->nf1 * plan->nf2 * plan->nf3));
+                        checkCudaErrors(cudaMemset(plan->fw, 0, plan->nf3 * plan->nf1 * plan->nf2 * sizeof(CUCPX)));
                         if(i%2){
                                 c_shift = nhive[0]*nhive[1]+1;
                                 down_shift = 0;
@@ -290,21 +293,39 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                                 down_shift = nhive[0]*nhive[1]+1;
                         }
                         up_shift = nhive[0]*nhive[1]*2+2;
-                        int remain_batch = curaff_partial_conv(plan, up_shift, c_shift, down_shift);
+                        int remain_batch = curaff_partial_conv(plan, i*plan->nf3, up_shift, c_shift, down_shift);
+                        printf("conv result printing (first w plane)...\n");
+                        CPX *fw = (CPX *)malloc(sizeof(CPX) * plan->nf1 * plan->nf2 );
+                        cudaMemcpy(fw, plan->fw, sizeof(CUCPX) * plan->nf1 * plan->nf2, cudaMemcpyDeviceToHost);
+                        for (int j = 0; j < 200; j++)
+                        {
+                                printf("%.3g ", fw[j].real());
+                        }
                         show_mem_usage();
                         // cufft plan setting
                         cufft_plan_setting(plan);
                         cura_cufft(plan);
+                        for (int j = 0; j < 200; j++)
+                        {
+                                printf("%.3g ", fw[j].real());
+                        }
+                        printf("--------------------\n");
                         cufftDestroy(plan->fftplan);
                         if(remain_batch!=0) cufftDestroy(plan->fftplan_l);
                         
-                        // need to revise
                         curadft_partial_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y, i*plan->nf3);
+                        cudaMemcpy(fw, plan->fw_temp, sizeof(CUCPX) * plan->nf1 * plan->nf2, cudaMemcpyDeviceToHost);
+                        for (int j = 0; j < 200; j++)
+                        {
+                                printf("%.3g ", fw[j].real());
+                        }
                 }
                 // last cube
                 checkCudaErrors(cudaMemcpy(plan->hive_count+nhive[0]*nhive[1]*nhive[2]*2+2,gridder_plan->temp_station,sizeof(int)*(nhive[0]*nhive[1]+1),cudaMemcpyHostToDevice));
                 free(gridder_plan->temp_station);
                 
+                checkCudaErrors(cudaMemset(plan->fw, 0, plan->nf3 * plan->nf1 * plan->nf2 * sizeof(CUCPX)));
+
                 int nf3 = plan->nf3;
                 plan->nf3 = plan->mem_limit - i * nf3;
                 cufft_plan_setting(plan);
@@ -318,7 +339,7 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                         down_shift = nhive[0]*nhive[1]+1;
                 }
                 up_shift = nhive[0]*nhive[1]*2+2;
-                int remain_batch = curaff_partial_conv(plan, up_shift, c_shift, down_shift);
+                int remain_batch = curaff_partial_conv(plan, i*nf3, up_shift, c_shift, down_shift);
                 cura_cufft(plan);
                 if(remain_batch!=0){
                         cufftDestroy(plan->fftplan_l);

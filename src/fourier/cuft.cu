@@ -756,7 +756,6 @@ void curadft_partial_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize,
     int N2 = plan->mt;
     int batchsize = plan->nf3;
     int flag = plan->iflag;
-    printf("plane id %d\n",plane_id);
     int num_threads = 512;
     if (flag==1){
         dim3 block(num_threads);
