@@ -130,16 +130,22 @@ int cura_prestage(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
                 fourier_series_appro_invoker(plan->fwkerhalf3, plan->d_x, plan->copts, (N1 / 2 + 1) * (N2 / 2 + 1), plan->opts.gpu_kerevalmeth); // correction with k, may be wrong, k will be free in this function
         }
 
+        // the pirange issue!!!
         // bin mapping
-        if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,gridder_plan->d_uvw); //currently just support 3d //uvw or u?
 
+        if(plan->mem_limit){
+                gridder_plan->temp_station = (int *) malloc (sizeof(int)*(((plan->nf1-1)/plan->hivesize[0] + 1)*((plan->nf2-1)/plan->hivesize[1] + 1)+1));
+                part_bin_mapping_pre(plan, gridder_plan->temp_station, plan->initial);
+                checkCudaErrors(cudaMalloc((void**)&plan->fw_temp, plan->nf1 * plan->nf2 * sizeof(CUCPX)));/// free somewhere | for dft
+                checkCudaErrors(cudaMemset(plan->fw_temp,0,plan->nf1 * plan->nf2 * sizeof(CUCPX)));
+        } 
+        else if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,gridder_plan->d_uvw); //currently just support 3d //uvw or u?
         // fw malloc
         unsigned long long int fw_size = plan->nf1;
         fw_size *= plan->nf2;
         fw_size *= plan->nf3;
         checkCudaErrors(cudaMalloc((void**)&plan->fw, fw_size * sizeof(CUCPX)));
         checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
-
         return ier;
 }
 
@@ -179,7 +185,8 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
         cudaEventCreate(&stop);
         cudaEventRecord(start);
 #endif
-        ier = curafft_conv(plan);
+        if(!plan->mem_limit)ier = curafft_conv(plan);
+        
 #ifdef TIME
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
@@ -205,7 +212,10 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
 #ifdef TIME
         cudaEventRecord(start);
 #endif
-        cura_cufft(plan);
+        if(!plan->mem_limit){
+                cufft_plan_setting(plan);
+                cura_cufft(plan);
+        }
         // int direction = plan->iflag;
         // // cautious, a batch of fft, bath size is num_w when memory is sufficent.
         
@@ -234,7 +244,7 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
 #ifdef TIME
         cudaEventRecord(start);
 #endif
-        curadft_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y);
+        if(!plan->mem_limit)curadft_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y);
 #ifdef TIME
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
@@ -253,6 +263,70 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
             printf("\n");
         }
 #endif
+        if(plan->mem_limit){
+                int nhive[3];
+                nhive[0] = (plan->nf1-1)/plan->hivesize[0] + 1;
+                nhive[1] = (plan->nf2-1)/plan->hivesize[1] + 1;
+                nhive[2] = (plan->nf3-1)/plan->hivesize[2] + 1;
+                unsigned long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
+                histo_count_size *= nhive[1]*plan->hivesize[1];
+                histo_count_size *= nhive[2]*plan->hivesize[2];
+                histo_count_size ++;
+                int i;
+                int up_shift, c_shift, down_shift;
+                for(i=0; i<(plan->mem_limit-1)/plan->nf3; i++){
+                        show_mem_usage();
+                        checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
+                        checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
+                        part_bin_mapping(plan, plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, histo_count_size, i+1, plan->initial);
+                        checkCudaErrors(cudaFree(plan->histo_count));
+
+                        if(i%2){
+                                c_shift = nhive[0]*nhive[1]+1;
+                                down_shift = 0;
+                        }
+                        else{
+                                c_shift = 0;
+                                down_shift = nhive[0]*nhive[1]+1;
+                        }
+                        up_shift = nhive[0]*nhive[1]*2+2;
+                        int remain_batch = curaff_partial_conv(plan, up_shift, c_shift, down_shift);
+                        show_mem_usage();
+                        // cufft plan setting
+                        cufft_plan_setting(plan);
+                        cura_cufft(plan);
+                        cufftDestroy(plan->fftplan);
+                        if(remain_batch!=0) cufftDestroy(plan->fftplan_l);
+                        
+                        // need to revise
+                        curadft_partial_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y, i*plan->nf3);
+                }
+                // last cube
+                checkCudaErrors(cudaMemcpy(plan->hive_count+nhive[0]*nhive[1]*nhive[2]*2+2,gridder_plan->temp_station,sizeof(int)*(nhive[0]*nhive[1]+1),cudaMemcpyHostToDevice));
+                free(gridder_plan->temp_station);
+                
+                int nf3 = plan->nf3;
+                plan->nf3 = plan->mem_limit - i * nf3;
+                cufft_plan_setting(plan);
+
+                if(i%2){
+                        c_shift = nhive[0]*nhive[1]+1;
+                        down_shift = 0;
+                }
+                else{
+                        c_shift = 0;
+                        down_shift = nhive[0]*nhive[1]+1;
+                }
+                up_shift = nhive[0]*nhive[1]*2+2;
+                int remain_batch = curaff_partial_conv(plan, up_shift, c_shift, down_shift);
+                cura_cufft(plan);
+                if(remain_batch!=0){
+                        cufftDestroy(plan->fftplan_l);
+                }
+                curadft_partial_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y, i*nf3);
+                checkCudaErrors(cudaFree(plan->fw));
+                plan->fw = plan->fw_temp;
+        }
         // 4. deconvolution (correction)
         // error detected, 1. w term deconv
         // 1. 2D deconv towards u and v

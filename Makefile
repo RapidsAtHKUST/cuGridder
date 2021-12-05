@@ -221,7 +221,7 @@ checkutils: utiltest
 
 checkwst: w_s_test
 	@echo "W stacking checking..."
-	bin/w_s_gridder_test 4 1 4096 4096 100000000 10
+	bin/w_s_gridder_test 4 1 4096 4096 1000000 10
 	bin/w_s_degridder_test 0 1 100 100 10000 10
 # bin/w_s_test 0 1 5000 5000 50000000 10
 

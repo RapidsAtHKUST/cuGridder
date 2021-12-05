@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
 	// fk(image) malloc and set
 	checkCudaErrors(cudaMalloc((void**)&d_fk,sizeof(CUCPX)*nydirty*nxdirty));
 	plan->fk = d_fk;
-
+	show_mem_usage();
 	gridder_plan->dirty_image = (CPX *)malloc(sizeof(CPX)*nxdirty*nydirty*nchan); //
 
 

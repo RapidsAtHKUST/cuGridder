@@ -46,6 +46,7 @@ struct ragridder_plan
     int speedoflight;
     CPX *dirty_image;
     PCS *d_uvw;
+    int *temp_station;
     int width;
     int height;
     int channel;

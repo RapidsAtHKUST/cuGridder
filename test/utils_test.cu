@@ -93,9 +93,9 @@ int main(int argc, char* argv[]){
     checkCudaErrors(cudaMemset(histo_count,0,sizeof(int)*(nf1*nf2+1)));
     int init_scan_value = 0;
     for(int i=0; i<nf3; i++){
-        part_histogram_3d_sparse_invoker(d_x,d_y,d_z,sortidx_bin,histo_count,n,nf1,nf2,nf3,i);
+        part_histogram_3d_sparse_invoker(d_x,d_y,d_z,sortidx_bin,histo_count,n,nf1,nf2,nf3,i,1);
         prefix_scan(histo_count,histo_count,nf1*nf2+1,0);
-        part_mapping_based_gather_3d_invoker(d_x,d_y,d_z,d_c,d_x_out,d_y_out,d_z_out,d_c_out,sortidx_bin,histo_count,se_loc,n,nf1,nf2,nf3,i,init_scan_value);
+        part_mapping_based_gather_3d_invoker(d_x,d_y,d_z,d_c,d_x_out,d_y_out,d_z_out,d_c_out,sortidx_bin,histo_count,se_loc,n,nf1,nf2,nf3,i,init_scan_value,plan->copts.pirange);
         int last_value;
         checkCudaErrors(cudaMemcpy(&last_value,histo_count+nf1*nf2,sizeof(int),cudaMemcpyDeviceToHost));
         init_scan_value += last_value;

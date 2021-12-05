@@ -75,7 +75,8 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
     
     // get number of w planes, scaling ratio gamma
     set_nhg_w(plan->ta.o_half_width[0], plan->ta.i_half_width[0], plan->copts, plan->nf1, plan->ta.h[0], plan->ta.gamma[0]); //temporately use nf1
-    if(plan->nf1>32)plan->nf1 = 32; // will exceed the memroy size
+    plan->nf1 = 100;
+    // if(plan->nf1>32)plan->nf1 = 32; // will exceed the memroy size
 #ifdef INFO
     printf("U_width %lf, U_center %lf, X_width %.10lf, X_center %.10lf, gamma %lf, nf %d, h %lf\n",
            plan->ta.i_half_width[0], plan->ta.i_center[0], plan->ta.o_half_width[0], plan->ta.o_center[0], plan->ta.gamma[0], plan->nf1, plan->ta.h[0]);
@@ -174,6 +175,17 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     int nf1 = get_num_cells(N1, plan->copts);
     int nf2 = get_num_cells(N2, plan->copts);
     int nf3 = gridder_plan->num_w;
+
+    // max number of w planes
+    size_t free_byte;
+    size_t total_byte;
+    checkCudaErrors(cudaMemGetInfo(&free_byte, &total_byte));
+    int max_w_p = free_byte / nf1 / nf2 / 16;
+    if(nf3>=max_w_p){
+        nf3 = max_w_p / 8 * 8; // < max_w_p 
+        plan->mem_limit = gridder_plan->num_w;
+    }
+
     if (w_term_method)
         plan->dim = 3;
     else
@@ -215,31 +227,31 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     // cudaMemcpy(fwkerhalf1, plan->fwkerhalf1, sizeof(PCS) * (plan->nf1 / 2 + 1), cudaMemcpyDeviceToHost);
     // cudaMemcpy(fwkerhalf2, plan->fwkerhalf2, sizeof(PCS) * (plan->nf2 / 2 + 1), cudaMemcpyDeviceToHost);
 
-    // cufft plan setting
-    cufftHandle fftplan;
-    int n[] = {plan->nf2, plan->nf1};
-    int inembed[] = {plan->nf2, plan->nf1};
-    int onembed[] = {plan->nf2, plan->nf1};
+    // // cufft plan setting
+    // cufftHandle fftplan;
+    // int n[] = {plan->nf2, plan->nf1};
+    // int inembed[] = {plan->nf2, plan->nf1};
+    // int onembed[] = {plan->nf2, plan->nf1};
     
-    if(MAX_CUFFT_ELEM/plan->nf1/plan->nf2<plan->nf3){
-        batchsize = MAX_CUFFT_ELEM/plan->nf1/plan->nf2;
-        cufftHandle fftplanl;
-        int remain_batch = plan->nf3%batchsize;
-        if(remain_batch!=0){
-            cufftPlanMany(&fftplanl, 2, n, inembed, 1, inembed[0] * inembed[1],
-                    onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, remain_batch);
-        }
-        plan->fftplan_l = fftplanl;
-    }
-    // check, multi cufft for different w ??? how to set
-    // cufftCreate(&fftplan);
-    // cufftPlan2d(&fftplan,n[0],n[1],CUFFT_TYPE);
-    // the bach size sets as the num of w when memory is sufficent. Alternative way, set as a smaller number when memory is insufficient.
-    // and handle this piece by piece
-    cufftPlanMany(&fftplan, 2, n, inembed, 1, inembed[0] * inembed[1],
-                  onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, batchsize); //There's a hard limit of roughly 2^27 elements in a plan!!!!!!!!!
-    plan->fftplan = fftplan;
-    plan->batchsize = batchsize;
+    // if(MAX_CUFFT_ELEM/plan->nf1/plan->nf2<plan->nf3){
+    //     batchsize = MAX_CUFFT_ELEM/plan->nf1/plan->nf2;
+    //     cufftHandle fftplanl;
+    //     int remain_batch = plan->nf3%batchsize;
+    //     if(remain_batch!=0){
+    //         cufftPlanMany(&fftplanl, 2, n, inembed, 1, inembed[0] * inembed[1],
+    //                 onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, remain_batch);
+    //     }
+    //     plan->fftplan_l = fftplanl;
+    // }
+    // // check, multi cufft for different w ??? how to set
+    // // cufftCreate(&fftplan);
+    // // cufftPlan2d(&fftplan,n[0],n[1],CUFFT_TYPE);
+    // // the bach size sets as the num of w when memory is sufficent. Alternative way, set as a smaller number when memory is insufficient.
+    // // and handle this piece by piece
+    // cufftPlanMany(&fftplan, 2, n, inembed, 1, inembed[0] * inembed[1],
+    //               onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, batchsize); //There's a hard limit of roughly 2^27 elements in a plan!!!!!!!!!
+    // plan->fftplan = fftplan;
+    // plan->batchsize = batchsize;
     
     // u and v scaling *pixelsize
     rescaling_real_invoker(d_u,gridder_plan->pixelsize_x,gridder_plan->nrow);

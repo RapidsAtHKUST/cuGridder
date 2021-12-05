@@ -71,7 +71,7 @@ void get_max_min(PCS &max, PCS &min, PCS *d_array, int n)
 // }
 
 __global__ void part_histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
-    int N_v, int nf1, int nf2, int nf3, int plane){
+    int N_v, int nf1, int nf2, int nf3, int plane, int pirange){
   /*
   do not use privitization due to sparsity. 
   histogram one plane by one plane (limitation of memory) ++++ sorted
@@ -80,9 +80,9 @@ __global__ void part_histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bi
   int bin_x, bin_y, bin_z;
   for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
     // get bin index
-    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, 1));
-		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, 1));
-		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, 1));
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
     /// 2d or somehow 3d partical
     if(bin_z==plane){
       int bindex = bin_y * nf1 + bin_x;
@@ -92,14 +92,14 @@ __global__ void part_histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bi
   }
 }
 
-void part_histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int plane){
+void part_histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int plane, int pirange){
   int blocksize = 256;
-  part_histogram_3d_sparse<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,plane);
+  part_histogram_3d_sparse<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,plane,pirange);
   checkCudaErrors(cudaDeviceSynchronize());
 }
 
 __global__ void histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
-    int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z){
+    int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, int pirange){
   /*
   do not use privitization due to sparsity. 
   */
@@ -110,9 +110,9 @@ __global__ void histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bin, in
   unsigned long int histo_idx;
   for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
     // get bin index
-    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, 1));
-		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, 1));
-		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, 1));
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
     int hive_x = bin_x / hivesize_x;
     int hive_y = bin_y / hivesize_y;
     int hive_z = bin_z / hivesize_z;
@@ -126,21 +126,133 @@ __global__ void histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bin, in
   }
 }
 
-void histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive){
+__global__ void final_hive_plane_histo(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
+    int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, 
+    int nhive_x, int nhive_y, int nhive_z, int plane, int pirange){
+  int idx;
+  int bin_x, bin_y, bin_z;
+  unsigned long int histo_idx;
+  for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
+    // get bin index
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
+    int hive_x = bin_x / hivesize_x;
+    int hive_y = bin_y / hivesize_y;
+    // int hive_z = bin_z / hivesize_z;
+    // cube_id
+    if(bin_z >= plane){ // constant nf3->nhive
+      histo_idx = hive_x + hive_y * nhive_x;
+      histo_idx *= hivesize_x * hivesize_y * hivesize_z;
+      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z % hivesize_z) * hivesize_x * hivesize_y;
+      // printf("%d,%d,%d\n",hive_x,hive_y,hive_z);
+      int old = atomicAdd(&histo_count[histo_idx],1);
+      sortidx_bin[idx] = old;
+    }
+  }
+}
+__global__ void final_hive_mapping_gather(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, 
+    int nhive_x, int nhive_y, int nhive_z, int plane, int total, int pirange){
+  int idx;
+  PCS x1, y1, z1;
+  unsigned long int histo_idx;
+  for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
+    // get bin index
+    x1 = SHIFT_RESCALE(x[idx], nf1, pirange);
+		y1 = SHIFT_RESCALE(y[idx], nf2, pirange);
+		z1 = SHIFT_RESCALE(z[idx], nf3, pirange);
+    int bin_x = floor(x1);
+    int bin_y = floor(y1);
+    int bin_z = floor(z1);
+    int hive_x = bin_x / hivesize_x;
+    int hive_y = bin_y / hivesize_y;
+    // int hive_z = bin_z / hivesize_z;
+    // if(abs(x[idx]-0.152601)<0.0001)printf("---%d,%d,%d\n",hive_x,hive_y,hive_z);
+    if(bin_z>=plane){
+      histo_idx = hive_x + hive_y * nhive_x;
+      histo_idx *= hivesize_x * hivesize_y * hivesize_z;
+      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z % hivesize_z) * hivesize_x * hivesize_y;
+
+      int loc = N_v - (total - sortidx_bin[idx]-histo_count[histo_idx]);
+      // if(abs(x[idx]-0.152601)<0.0001)printf("-------loc %d\n",loc);
+      x_out[loc] = x1;
+      y_out[loc] = y1;
+      z_out[loc] = z1;
+      c_out[loc] = c[idx];
+    }
+  }
+}
+
+void final_hive_plane_bin_mapping(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
+    int *sortidx_bin, int *histo_count, int *hive_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int pirange){
+  int plane = nf3 - 8;
+  int blocksize = 256;
+  final_hive_plane_histo<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], plane, pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+  prefix_scan(histo_count,histo_count,nhive[0]*nhive[1]*hivesize[0]*hivesize[1]*hivesize[2]+1,0);
+  int total;
+  checkCudaErrors(cudaMemcpy(&total,histo_count+nhive[0]*nhive[1]*hivesize[0]*hivesize[1]*hivesize[2],sizeof(int),cudaMemcpyDeviceToHost));
+  // count
+  counting_hive_invoker(hive_count,histo_count,nhive[0]*nhive[1]+1,hivesize[0]*hivesize[1]*hivesize[2],N_v-total);
+  final_hive_mapping_gather<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0],hivesize[1],hivesize[2],nhive[0],nhive[1],nhive[2],plane,total,pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+}
+
+
+__global__ void part_histogram_3d_cube(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
+    int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, 
+    int nhive_x, int nhive_y, int nhive_z, int cube_id, int cube_z, int pirange){
+  /*
+  do not use privitization due to sparsity. 
+  */
+  // found the reason
+  
+  int idx;
+  int bin_x, bin_y, bin_z;
+  unsigned long int histo_idx;
+  for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
+    // get bin index
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
+    int hive_x = bin_x / hivesize_x;
+    int hive_y = bin_y / hivesize_y;
+    int hive_z = bin_z / hivesize_z;
+    // cube_id
+    if(bin_z/cube_z==cube_id){ // constant nf3->nhive
+      histo_idx = hive_x + hive_y * nhive_x + (hive_z-cube_id*cube_z/8) * nhive_x * nhive_y;
+      histo_idx *= hivesize_x * hivesize_y * hivesize_z;
+      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z % hivesize_z) * hivesize_x * hivesize_y;
+      // printf("%d,%d,%d\n",hive_x,hive_y,hive_z);
+      int old = atomicAdd(&histo_count[histo_idx],1);
+      sortidx_bin[idx] = old;
+    }
+  }
+}
+
+void histogram_3d_cube_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
+    int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int cube_id, int cube_z, int pirange){
   int blocksize = 512;
-  histogram_3d_sparse<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2]);
+  part_histogram_3d_cube<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], cube_id, cube_z, pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+}
+
+void histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int pirange){
+  int blocksize = 512;
+  histogram_3d_sparse<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
   checkCudaErrors(cudaDeviceSynchronize());
 }
 
 __global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
-    int *sortidx_bin, int *histo_count, int2 *se_loc, int N_v, int nf1, int nf2, int nf3, int plane, int init_scan_value){
+    int *sortidx_bin, int *histo_count, int2 *se_loc, int N_v, int nf1, int nf2, int nf3, int plane, int init_scan_value, int pirange){
   int idx;
   int temp1, temp2, temp3;
   for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
     // get bin index
-    temp1 = floor(SHIFT_RESCALE(x[idx], nf1, 1));
-		temp2 = floor(SHIFT_RESCALE(y[idx], nf2, 1));
-		temp3 = floor(SHIFT_RESCALE(z[idx], nf3, 1));
+    temp1 = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		temp2 = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		temp3 = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
     if(temp3==plane){
       int bindex = temp2 * nf1 + temp1;
       int start_loc = histo_count[bindex]+init_scan_value;
@@ -156,22 +268,64 @@ __global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, P
 }
 
 void part_mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
-    int *sortidx_bin, int *histo_count, int2 *se_loc, int N_v, int nf1, int nf2, int nf3, int plane, int init_scan_value){
+    int *sortidx_bin, int *histo_count, int2 *se_loc, int N_v, int nf1, int nf2, int nf3, int plane, int init_scan_value, int pirange){
   int blocksize = 256;
-  part_mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,se_loc,N_v,nf1,nf2,nf3,plane,init_scan_value);
+  part_mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,se_loc,N_v,nf1,nf2,nf3,plane,init_scan_value,pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+}
+
+__global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, 
+    int nhive_x, int nhive_y, int nhive_z, int cube_id, int cube_z, int init_scan_value, int pirange){
+  // replace issue
+  int idx;
+  PCS x1, y1, z1;
+  unsigned long int histo_idx;
+  for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
+    // get bin index
+    x1 = SHIFT_RESCALE(x[idx], nf1, pirange);
+		y1 = SHIFT_RESCALE(y[idx], nf2, pirange);
+		z1 = SHIFT_RESCALE(z[idx], nf3, pirange);
+    int bin_x = floor(x1);
+    int bin_y = floor(y1);
+    int bin_z = floor(z1);
+    int hive_x = bin_x / hivesize_x;
+    int hive_y = bin_y / hivesize_y;
+    int hive_z = bin_z / hivesize_z;
+    // if(abs(x[idx]-0.152601)<0.0001)printf("---%d,%d,%d\n",hive_x,hive_y,hive_z);
+    if(bin_z/cube_z==cube_id){
+      histo_idx = hive_x + hive_y * nhive_x + (hive_z-cube_id*cube_z/8) * nhive_x * nhive_y;
+      histo_idx *= hivesize_x * hivesize_y * hivesize_z;
+      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z % hivesize_z) * hivesize_x * hivesize_y;
+
+      int loc = sortidx_bin[idx]+histo_count[histo_idx]+init_scan_value;
+      // if(abs(x[idx]-0.152601)<0.0001)printf("-------loc %d\n",loc);
+      x_out[loc] = x1;
+      y_out[loc] = y1;
+      z_out[loc] = z1;
+      c_out[loc] = c[idx];
+    }
+  }
+}
+
+void part_mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int *nhive, int cube_id, int cube_z, 
+    int init_scan_value, int pirange){
+  int blocksize = 256;
+  part_mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0],hivesize[1],hivesize[2],nhive[0],nhive[1],nhive[2],cube_id,cube_z,init_scan_value,pirange);
   checkCudaErrors(cudaDeviceSynchronize());
 }
 
 __global__ void mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
-    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z){
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, int pirange){
   int idx;
   int bin_x, bin_y, bin_z;
   unsigned long int histo_idx;
   for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
     // get bin index
-    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, 1));
-		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, 1));
-		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, 1));
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
 
     int hive_x = bin_x / hivesize_x;
     int hive_y = bin_y / hivesize_y;
@@ -191,15 +345,15 @@ __global__ void mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x
 }
 
 __global__ void mapping_based_gather_3d_replace(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
-    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z){
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, int pirange){
   int idx;
   PCS x1, y1, z1;
   unsigned long int histo_idx;
   for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
     // get bin index
-    x1 = SHIFT_RESCALE(x[idx], nf1, 1);
-		y1 = SHIFT_RESCALE(y[idx], nf2, 1);
-		z1 = SHIFT_RESCALE(z[idx], nf3, 1);
+    x1 = SHIFT_RESCALE(x[idx], nf1, pirange);
+		y1 = SHIFT_RESCALE(y[idx], nf2, pirange);
+		z1 = SHIFT_RESCALE(z[idx], nf3, pirange);
     int bin_x = floor(x1);
     int bin_y = floor(y1);
     int bin_z = floor(z1);
@@ -221,11 +375,11 @@ __global__ void mapping_based_gather_3d_replace(PCS *x, PCS *y, PCS *z, CUCPX *c
 }
 
 void mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
-    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int method){
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int method, int pirange){
   int blocksize = 256;
   if(method==2)
-  mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2]);
-  if(method==3||method==4)mapping_based_gather_3d_replace<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2]);
+  mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
+  if(method==3||method==4)mapping_based_gather_3d_replace<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
   checkCudaErrors(cudaDeviceSynchronize());
 }
 

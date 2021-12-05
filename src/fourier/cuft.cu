@@ -17,6 +17,29 @@
 #include "deconv.h"
 #include "conv.h"
 
+int cufft_plan_setting(CURAFFT_PLAN *plan){
+    // cufft plan setting
+    // cufftHandle fftplan;
+    int n[] = {plan->nf2, plan->nf1};
+    int inembed[] = {plan->nf2, plan->nf1};
+    int onembed[] = {plan->nf2, plan->nf1};
+    int batchsize = plan->nf3;
+    int remain_batch;
+    if(MAX_CUFFT_ELEM/plan->nf1/plan->nf2<plan->nf3){
+        batchsize = MAX_CUFFT_ELEM/plan->nf1/plan->nf2;
+        remain_batch = plan->nf3%batchsize;
+        if(remain_batch!=0){
+            cufftPlanMany(&plan->fftplan_l, 2, n, inembed, 1, inembed[0] * inembed[1],
+                    onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, remain_batch);
+        }
+    }
+    cufftPlanMany(&plan->fftplan, 2, n, inembed, 1, inembed[0] * inembed[1],
+                  onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, batchsize); //There's a hard limit of roughly 2^27 elements in a plan!!!!!!!!!
+    cudaError_t err = cudaGetLastError();
+    plan->batchsize = batchsize;
+    return remain_batch;
+}
+
 __global__ void pre_stage_1(PCS o_center_0, PCS o_center_1, PCS o_center_2, PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_c, int M, int flag)
 {
     /*
@@ -131,15 +154,15 @@ int cura_prestage(CURAFFT_PLAN *plan){
         int nf3 = 1;
 
         // fourier series
-        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1/2+1, plan->opts.gpu_kerevalmeth);
+        fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, nf1/2+1, plan->opts.gpu_kerevalmeth);
         if(plan->dim>1){
             nf2 = plan->nf2;
-            fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2/2+1, plan->opts.gpu_kerevalmeth);
+            fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, nf2/2+1, plan->opts.gpu_kerevalmeth);
         }
         if(plan->dim>2){
             nf3 = plan->nf3;
             // printf("I am inn\n");
-            fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, plan->nf3/2+1, plan->opts.gpu_kerevalmeth);
+            fourier_series_appro_invoker(plan->fwkerhalf3, plan->copts, nf3/2+1, plan->opts.gpu_kerevalmeth);
         }
         // binmapping
         if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,NULL); //currently just support 3d
@@ -168,7 +191,7 @@ int cura_cufft(CURAFFT_PLAN *plan){
     if(remain_batch!=0){
         CUFFT_EXEC(plan->fftplan_l, plan->fw+elem_num_wb*i, plan->fw+elem_num_wb*i, direction); // sychronized or not
         checkCudaErrors(cudaDeviceSynchronize());
-        cufftDestroy(plan->fftplan_l); // destroy here to save memory
+        if(!plan->mem_limit)cufftDestroy(plan->fftplan_l); // destroy here to save memory
     }
     return 0;
 }
@@ -586,12 +609,6 @@ __global__ void w_term_dft(CUCPX *fw, int nf1, int nf2, int nf3, int N1, int N2,
             temp.x += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * (i - nf3) * flag) - fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * (i - nf3) * flag);
             temp.y += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * (i - nf3) * flag) + fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * (i - nf3) * flag);
         }
-        // for (int i = 0; i < batchsize; i++)
-        // {
-        //     //for partial computing, the i should add a shift, and fw should change
-        //     temp.x += fw[idx_fw + i*nf1*nf2].x * cos(z * (i-nf3/2)/(PCS)nf3 * 2 * PI * flag) - fw[idx_fw + i*nf1*nf2].y * sin(z * (i-nf3/2)/(PCS)nf3 * 2 * PI *flag); //cautious
-        //     temp.y += fw[idx_fw + i*nf1*nf2].x * sin(z * (i-nf3/2)/(PCS)nf3 * 2 * PI * flag) + fw[idx_fw + i*nf1*nf2].y * cos(z * (i-nf3/2)/(PCS)nf3 * 2 * PI *flag);
-        // }
         fw[idx_fw] = temp;
     }
 }
@@ -675,4 +692,76 @@ void curadft_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize)
         checkCudaErrors(cudaDeviceSynchronize());
     }
     return;
+}
+
+
+__global__ void partial_w_term_dft(CUCPX *fw, CUCPX *fw_temp, int nf1, int nf2, int nf3, int N1, int N2, PCS *z, int flag, int plane_id, int batchsize)
+{
+    /*
+        Specified for radio astronomy
+        W term dft output driven method (idx takes charge of idx's dft in CMCL mode)
+        the output of cufft is FFTW format// just do dft on the in range pixels
+        Input:
+            fw - result after ffts towards each w plane (FFTW mode)
+            z - output coordinate after rescaling, size - (N1/2+1,N2/2+1)
+            flag - fourier flag
+            i|o_center - center of input|output
+    */
+    int idx;
+    flag = 1.0;
+    for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N1 * N2; idx += gridDim.x * blockDim.x)
+    {
+        int row = idx / N1;
+        int col = idx % N1;
+        int idx_fw = 0;
+        int w1 = 0;
+        int w2 = 0;
+
+        w1 = col >= N1 / 2 ? col - N1 / 2 : nf1 + col - N1 / 2;
+        w2 = row >= N2 / 2 ? row - N2 / 2 : nf2 + row - N2 / 2;
+        idx_fw = w1 + w2 * nf1;
+        CUCPX temp;
+        temp.x = 0;
+        temp.y = 0;
+
+        // double z_t_2pi = 2 * PI * (z); w have been scaling to pirange
+        // currently not support for partial computing
+        int i;
+        int idx_z = abs(col - N1 / 2) + abs(row - N2 / 2) * (N1 / 2 + 1);
+        // in w axis the fw is 0 to N, not FFTW mode
+        // for(i = plane_id; i<batchsize+plane_id; i++){
+        //     if(i < nf3 / 2){
+        //         temp.x += fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * i * flag) - fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * i * flag);
+        //         temp.y += fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * i * flag) + fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * i * flag);
+        //     }
+        //     else if (i < nf3){
+        //         temp.x += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * (i - nf3) * flag) - fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * (i - nf3) * flag);
+        //         temp.y += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * (i - nf3) * flag) + fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * (i - nf3) * flag);
+        //     }
+        // }
+        for(i = 0; i<batchsize; i++){
+            temp.x += fw[idx_fw + i * nf1 * nf2].x * cos(z[idx_z] * (i + plane_id - nf3/2) * flag) - fw[idx_fw + i * nf1 * nf2].y * sin(z[idx_z] * (i + plane_id - nf3/2) * flag);
+            temp.y += fw[idx_fw + i * nf1 * nf2].x * sin(z[idx_z] * (i + plane_id - nf3/2) * flag) + fw[idx_fw + i * nf1 * nf2].y * cos(z[idx_z] * (i + plane_id - nf3/2) * flag);
+        }
+        fw_temp[idx_fw].x += temp.x;
+        fw_temp[idx_fw].y += temp.y;
+    }
+}
+
+void curadft_partial_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize, int plane_id){
+    int nf1 = plan->nf1;
+    int nf2 = plan->nf2;
+    int nf3 = plan->mem_limit;
+    int N1 = plan->ms;
+    int N2 = plan->mt;
+    int batchsize = plan->nf3;
+    int flag = plan->iflag;
+    printf("plane id %d\n",plane_id);
+    int num_threads = 512;
+    if (flag==1){
+        dim3 block(num_threads);
+        dim3 grid((N1 * N2 - 1) / num_threads + 1);
+        partial_w_term_dft<<<grid, block>>>(plan->fw, plan->fw_temp, nf1, nf2, nf3, N1, N2, plan->d_x, flag, plane_id, batchsize);
+        checkCudaErrors(cudaDeviceSynchronize());
+    }
 }
