@@ -82,20 +82,20 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
     print("Execution finished")
     dirty2 = np.reshape(dirty2,[nxdirty,nydirty])
     ms2 = np.zeros((nrow,1),dtype=np.complex128)
-    start = time.time()
-    ms2 = dirty2ms(uvw,freq, dirty, None, xpixsize, ypixsize, 0, 0, epsilon, True, 64)
-    end = time.time()
-    print("The elapsed time {} (sec)".format(end-start))
-    print("Execution finished")
+    # start = time.time()
+    # ms2 = dirty2ms(uvw,freq, dirty, None, xpixsize, ypixsize, 0, 0, epsilon, True, 64)
+    # end = time.time()
+    # print("The elapsed time {} (sec)".format(end-start))
+    # print("Execution finished")
 
     # truth_ms = explicit_degridder(uvw, freq, dirty, xpixsize, ypixsize, nrow, nchan, -1)
     # print("L2 error between explicit degridding and CURIG:",
     #           _l2error(truth_ms.real, np.squeeze(ms2.real)))
 
     # ms2 = np.reshape(ms2,[nrow,1])
-    print("\nadjointness testing....")
-    print(np.vdot(ms, ms2).real)
-    print(np.vdot(dirty2, dirty).real)
+    # print("\nadjointness testing....")
+    # print(np.vdot(ms, ms2).real)
+    # print(np.vdot(dirty2, dirty).real)
     # assert_allclose(np.vdot(ms, ms2).real, np.vdot(dirty2, dirty).real, rtol=1e-12)
 
     # if nrow<1e4:

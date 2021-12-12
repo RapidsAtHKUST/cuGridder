@@ -145,7 +145,7 @@ __global__ void final_hive_plane_histo(PCS *x, PCS *y, PCS *z, int *sortidx_bin,
     if(bin_z >= plane){ // constant nf3->nhive
       histo_idx = hive_x + hive_y * nhive_x;
       histo_idx *= hivesize_x * hivesize_y * hivesize_z;
-      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z % hivesize_z) * hivesize_x * hivesize_y;
+      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z - plane) * hivesize_x * hivesize_y;
       // printf("%d,%d,%d\n",hive_x,hive_y,hive_z);
       int old = atomicAdd(&histo_count[histo_idx],1);
       sortidx_bin[idx] = old;
@@ -173,7 +173,7 @@ __global__ void final_hive_mapping_gather(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS 
     if(bin_z>=plane){
       histo_idx = hive_x + hive_y * nhive_x;
       histo_idx *= hivesize_x * hivesize_y * hivesize_z;
-      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z % hivesize_z) * hivesize_x * hivesize_y;
+      histo_idx += bin_x % hivesize_x + (bin_y % hivesize_y) * hivesize_x + (bin_z - plane) * hivesize_x * hivesize_y;
 
       int loc = N_v - (total - sortidx_bin[idx]-histo_count[histo_idx]);
       // if(abs(x[idx]-0.152601)<0.0001)printf("-------loc %d\n",loc);
@@ -192,6 +192,7 @@ void final_hive_plane_bin_mapping(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, 
   // printf("1111\n");
   final_hive_plane_histo<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], plane, pirange);
   checkCudaErrors(cudaDeviceSynchronize());
+
   prefix_scan(histo_count,histo_count,nhive[0]*nhive[1]*hivesize[0]*hivesize[1]*hivesize[2]+1,0);
   int total;
   checkCudaErrors(cudaMemcpy(&total,histo_count+nhive[0]*nhive[1]*hivesize[0]*hivesize[1]*hivesize[2],sizeof(int),cudaMemcpyDeviceToHost));
@@ -302,7 +303,7 @@ __global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, P
 
       int loc = sortidx_bin[idx]+histo_count[histo_idx]+init_scan_value;
       // if(abs(x[idx]-0.152601)<0.0001)printf("-------loc %d\n",loc);
-      // if(loc==91444)printf("%lf %lf %lf %d %d %d\n",x1,y1,z1,bin_x,bin_y,bin_z);
+      // if(loc==99971)printf("%lf %lf %lf %d %d %d %d\n",x1,y1,z1,bin_x,bin_y,bin_z,idx);
       x_out[loc] = x1;
       y_out[loc] = y1;
       z_out[loc] = z1;
@@ -552,7 +553,8 @@ void set_nhg_w(PCS S, PCS X, conv_opts spopts,
   // use the safe X and S...
   PCS nfd = 2.0*spopts.upsampfac*Ssafe*Xsafe/PI + nss;
   if (!isfinite(nfd)) nfd=0.0;                // use FLT to catch inf
-  nf = (int)nfd;
+  nf = (int)nfd; // even number
+  nf = nf%2 + nf;
   //printf("initial nf=%lld, ns=%d\n",*nf,spopts.nspread);
   // catch too small nf, and nan or +-inf, otherwise spread fails...
   if (nf<2*spopts.kw) nf=2*spopts.kw;

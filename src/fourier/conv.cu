@@ -46,6 +46,24 @@ static __inline__ __device__ void val_kernel_vec(PCS *ker, const PCS x, const do
 	}
 }
 
+static __inline__ __device__ void kervalue_evaluate(PCS &ker, const PCS x, const double kw, const double es_c,
+												 const double es_beta, int flag)
+{	
+	ker = (abs(x) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * x  * x)-flag));
+}
+
+
+
+static __inline__ __device__ void val_kernel_vec(PCS *ker, const PCS x, const double kw, const double es_c,
+												 const double es_beta, int flag)
+{
+	//get vector of kernel function values
+	for (int i = 0; i < kw; i++)
+	{
+		ker[i] = (abs(x + i) >= kw / 2.0) ? 0.0 : exp(es_beta * (sqrt(1.0 - es_c * (x + i) * (x + i))-flag));
+	}
+}
+
 // static __inline__ __device__
 // void eval_kernel_vec_Horner(PCS *ker, const PCS x, const int w,
 // 	const double upsampfac)
@@ -570,7 +588,7 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 		outidx = nf1*nf2;
 		outidx *= bin_z;
 		outidx += bin_x + bin_y * nf1;
-		
+
 		int flag = 0; // first bit is for x, y, z later consider this issue
 	
 		
@@ -647,7 +665,7 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					// kernel evaluation
 					// PCS ker;
 					PCS kervalue = 1.0;
-
+					
 					PCS temp1 = abs(sh_x[i]-bin_x);
 					//++++ break if not in range
 					if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
@@ -662,7 +680,6 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
 					if(temp3>=ns/2.0)continue;
 
-					// if(outidx==3)printf("temp: %lf\n",temp1);
 					
 					int seg_idx = temp1 * seg_s;
 					double dis = temp1 * ns_2 - num_s_1 * seg_idx;
@@ -683,7 +700,7 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					seg_idx = temp3 * seg_s;
 					dis = temp3 * ns_2 - num_s_1 * seg_idx;
 					seg_idx *= SEG_ORDER;
-					kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
+					kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));		
 					// if(outidx==575)printf("temp: %.6g\n",kervalue);
 					// if(outidx==575)printf("temp: %.12lf\n",kervalue);
 					// if(outidx==3)printf("%d, %lf, %lf\n",seg_idx, sh_c0[seg_idx], kervalue);
@@ -701,7 +718,7 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 					// kervalue *=sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
 					// if(outidx==616)printf("%lf,%lu,%d,%d,%d\n",x[k],idx,cur_hive_x,cur_hive_y,cur_hive_z);
 					
-					// if(outidx==nf1*nf2-1)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);
+					// if(outidx==nf1*nf2*24+107532)printf("%lf,%lf,%lf\n",x[k],temp,kervalue);
 					fw[outidx].x += sh_c[i].x * kervalue;
 					fw[outidx].y += sh_c[i].y * kervalue;
 				
@@ -976,7 +993,7 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 					// kernel evaluation
 					// PCS ker;
 					PCS kervalue = 1.0;
-
+					
 					PCS temp1 = abs(sh_x[i]-bin_x);
 					//++++ break if not in range
 					if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
@@ -991,7 +1008,8 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 					if(temp3>nf3_total/2.0)temp3 = abs(nf3_total - temp3);
 					if(temp3>=ns/2.0)continue;
 
-					// if(outidx==3)printf("temp: %lf\n",temp1);
+					// if(outidx==nf1*nf2*16+21)printf("temp: %lf, %lf, %lf, %d %d %d\n",sh_x[i],sh_y[i],sh_z[i], hive_x,hive_y,hive_z);
+
 					
 					int seg_idx = temp1 * seg_s;
 					double dis = temp1 * ns_2 - num_s_1 * seg_idx;
@@ -1025,6 +1043,82 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 }
 
 
+
+__global__ void fisrt_hive_plane_nupt(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int flag, int pirange)
+{
+	/*
+		x, y, z - range [-pi,pi)
+		c - complex number
+		fw - result
+		M - number of nupts
+		ns - kernel width
+		nf1, nf2, nf3 - upts
+		es_ - gridding kernel related factors
+		pirange - 1
+	*/
+
+	int idx;
+	idx = blockDim.x * blockIdx.x + threadIdx.x;
+	int xx, yy, ix, iy;
+	unsigned int outidx;
+
+	PCS ker1[MAX_KERNEL_WIDTH];
+	PCS ker2[MAX_KERNEL_WIDTH];
+	PCS ker3;
+
+	PCS temp1, temp2, temp3;
+
+	// assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
+
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+
+		//value of x, shift and rescale to [0,N) and get the locations
+		temp1 = SHIFT_RESCALE(x[idx], nf1, pirange);
+		temp2 = SHIFT_RESCALE(y[idx], nf2, pirange);
+		temp3 = SHIFT_RESCALE(z[idx], nf3, pirange);
+		
+		int bin_x = floor(temp1);
+    	int bin_y = floor(temp2);
+    	int bin_z = floor(temp3);
+
+		int xstart = ceil(temp1 - ns / 2.0);
+		int ystart = ceil(temp2 - ns / 2.0);
+		int xend = floor(temp1 + ns / 2.0);
+		int yend = floor(temp2 + ns / 2.0);
+
+		PCS x1 = (PCS)xstart - temp1;
+		PCS y1 = (PCS)ystart - temp2;
+
+		val_kernel_vec(ker1, x1, ns, es_c, es_beta, flag);
+		val_kernel_vec(ker2, y1, ns, es_c, es_beta, flag);
+		if(bin_z>=nf3-ns/2.0){
+			for(int ii=ns/2; ii>0; ii--){
+				int out_z = bin_z+ii-nf3;
+				if(out_z<0)break;
+				kervalue_evaluate(ker3, abs(nf3 - temp3 + out_z), ns, es_c, es_beta,flag);
+				for (yy = ystart; yy <= yend; yy++)
+				{
+					temp2 = ker2[yy - ystart];
+					for (xx = xstart; xx <= xend; xx++)
+					{
+						//due to the peroid, the index out of range need to be handle
+						ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
+						iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
+						outidx = nf1 * nf2;
+						outidx *= out_z;
+						outidx += ix + iy * nf1;
+						temp1 = ker1[xx - xstart];
+						PCS kervalue = temp1 * temp2 * ker3;
+						atomicAdd(&fw[outidx].x, c[idx].x * kervalue);
+						atomicAdd(&fw[outidx].y, c[idx].y * kervalue);
+					}
+				}
+			}
+		}
+	}
+}
 // __global__ void conv_3d_outputdriven_shared_hive_lut_constant(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
 // 	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
 // 	/*

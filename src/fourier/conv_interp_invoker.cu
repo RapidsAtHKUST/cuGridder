@@ -315,7 +315,8 @@ int part_bin_mapping_pre(CURAFFT_PLAN *plan, int *temp_station, int &initial){
   plan->initial = 0;
   part_bin_mapping(plan, plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, histo_count_size, 0, plan->initial); // first cube
   // calcalute the final hive plane
-  final_hive_plane(plan, histo_count_size);
+  // final_hive_plane(plan, histo_count_size);
+  checkCudaErrors(cudaMemset(plan->hive_count+nhive[0] * nhive[1] * nhive[2] * 2+2 , 0, sizeof(int)*nhive[0] * nhive[1]+1));
 
   // save the first hive plane for final hive
   checkCudaErrors(cudaMemcpy(temp_station,plan->hive_count,sizeof(int)*nhive[0]*nhive[1]+1,cudaMemcpyDeviceToHost));
@@ -637,6 +638,18 @@ int partial_conv_3d_invoker(int nf1, int nf2, int nf3, int M, int init_shift, in
   return 0;
 }
 
+int fisrt_hive_plane_nupt_invoker(CURAFFT_PLAN *plan, int nf1, int nf2, int nf3, int flag){
+  dim3 block;
+  dim3 grid;
+  block.x = 256;
+  grid.x = (plan->M - 1) / block.x + 1;
+  // if the image resolution is small, the memory is sufficiently large for output after conv. 
+  fisrt_hive_plane_nupt<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->M,
+                                        plan->copts.kw, nf1, nf2, nf3, plan->copts.ES_c, plan->copts.ES_beta, flag,
+                                        plan->copts.pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+  return 0;
+}
 
 int curaff_partial_conv(CURAFFT_PLAN *plan, int init_shift, int up_shift, int c_shift, int down_shift){
   
@@ -650,6 +663,8 @@ int curaff_partial_conv(CURAFFT_PLAN *plan, int init_shift, int up_shift, int c_
   }
 
   ier = partial_conv_3d_invoker(nf1, nf2, nf3, M, init_shift, up_shift, c_shift, down_shift, plan);
-
+  if(init_shift==0){
+    fisrt_hive_plane_nupt_invoker(plan, nf1, nf2, plan->mem_limit, plan->opts.gpu_gridder_method==4);
+  }
   return ier;
 }

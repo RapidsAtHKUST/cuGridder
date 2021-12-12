@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 	{
 		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize; //xxxxx remove
 		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize;
-		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
+		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 * 1000;
 		vis[i].real(randm11()); // nrow vis per channel, weight?
 		vis[i].imag(randm11());
 		// wgt[i] = 1;
