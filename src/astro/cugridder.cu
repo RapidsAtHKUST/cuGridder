@@ -179,25 +179,20 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     size_t free_byte;
     size_t total_byte;
     checkCudaErrors(cudaMemGetInfo(&free_byte, &total_byte));
-    int max_w_p = free_byte / nf1 / nf2 / 16;
+    // int max_w_p = free_byte / nf1 / nf2 / 16;
+    int max_w_p = (free_byte - total_byte + free_byte) / nf1 / nf2 / 16;
+    // max_w_p=25;
     if(nf3>=max_w_p){
         nf3 = max_w_p / 8 * 8; // < max_w_p 
         plan->mem_limit = gridder_plan->num_w;
     }
-    
+
     if (w_term_method)
         plan->dim = 3;
     else
         plan->dim = 2;
     
     setup_plan(nf1, nf2, nf3, M, d_v, d_u, d_w, d_c, plan);
-    // printf("input data checking cugridder...\n");
-    //         PCS *temp = (PCS*)malloc(sizeof(PCS)*10);
-    //         printf("u v w and vis\n");
-    //         cudaMemcpy(temp,d_u,sizeof(PCS)*10,cudaMemcpyDeviceToHost);
-    //         for(int i=0;i<10;i++)
-    //         printf("%.3lf ",temp[i]);
-    //         printf("\n");
 
     plan->ms = N1;
     plan->mt = N2;

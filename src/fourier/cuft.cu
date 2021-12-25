@@ -583,7 +583,7 @@ __global__ void w_term_dft(CUCPX *fw, int nf1, int nf2, int nf3, int N1, int N2,
     {
         int row = idx / N1;
         int col = idx % N1;
-        int idx_fw = 0;
+        unsigned long long int idx_fw = 0;
         int w1 = 0;
         int w2 = 0;
 
@@ -599,15 +599,17 @@ __global__ void w_term_dft(CUCPX *fw, int nf1, int nf2, int nf3, int N1, int N2,
         int i;
         int idx_z = abs(col - N1 / 2) + abs(row - N2 / 2) * (N1 / 2 + 1);
         // in w axis the fw is 0 to N, not FFTW mode
+        unsigned long long int temp_idx = nf1;
+        temp_idx *= nf2;
         for (i = 0; i < nf3 / 2; i++)
         {
-            temp.x += fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * i * flag) - fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * i * flag);
-            temp.y += fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * i * flag) + fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * i * flag);
+            temp.x += fw[idx_fw + temp_idx*(i + nf3 / 2)].x * cos(z[idx_z] * i * flag) - fw[idx_fw + temp_idx * (i + nf3 / 2)].y * sin(z[idx_z] * i * flag);
+            temp.y += fw[idx_fw + temp_idx*(i + nf3 / 2)].x * sin(z[idx_z] * i * flag) + fw[idx_fw + temp_idx * (i + nf3 / 2)].y * cos(z[idx_z] * i * flag);
         }
         for (; i < nf3; i++)
         {
-            temp.x += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * (i - nf3) * flag) - fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * (i - nf3) * flag);
-            temp.y += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * (i - nf3) * flag) + fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * (i - nf3) * flag);
+            temp.x += fw[idx_fw + temp_idx * (i - nf3 / 2)].x * cos(z[idx_z] * (i - nf3) * flag) - fw[idx_fw + temp_idx * (i - nf3 / 2)].y * sin(z[idx_z] * (i - nf3) * flag);
+            temp.y += fw[idx_fw + temp_idx * (i - nf3 / 2)].x * sin(z[idx_z] * (i - nf3) * flag) + fw[idx_fw + temp_idx * (i - nf3 / 2)].y * cos(z[idx_z] * (i - nf3) * flag);
         }
         fw[idx_fw] = temp;
     }
@@ -728,20 +730,12 @@ __global__ void partial_w_term_dft(CUCPX *fw, CUCPX *fw_temp, int nf1, int nf2, 
         // currently not support for partial computing
         int i;
         int idx_z = abs(col - N1 / 2) + abs(row - N2 / 2) * (N1 / 2 + 1);
-        // in w axis the fw is 0 to N, not FFTW mode
-        // for(i = plane_id; i<batchsize+plane_id; i++){
-        //     if(i < nf3 / 2){
-        //         temp.x += fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * i * flag) - fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * i * flag);
-        //         temp.y += fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * i * flag) + fw[idx_fw + (i + nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * i * flag);
-        //     }
-        //     else if (i < nf3){
-        //         temp.x += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * cos(z[idx_z] * (i - nf3) * flag) - fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * sin(z[idx_z] * (i - nf3) * flag);
-        //         temp.y += fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].x * sin(z[idx_z] * (i - nf3) * flag) + fw[idx_fw + (i - nf3 / 2) * nf1 * nf2].y * cos(z[idx_z] * (i - nf3) * flag);
-        //     }
-        // }
+        unsigned long long int temp_idx = nf1;
+        temp_idx *= nf2;
+        
         for(i = 0; i<batchsize; i++){
-            temp.x += fw[idx_fw + i * nf1 * nf2].x * cos(z[idx_z] * (i + plane_id - nf3/2) * flag) - fw[idx_fw + i * nf1 * nf2].y * sin(z[idx_z] * (i + plane_id - nf3/2) * flag);
-            temp.y += fw[idx_fw + i * nf1 * nf2].x * sin(z[idx_z] * (i + plane_id - nf3/2) * flag) + fw[idx_fw + i * nf1 * nf2].y * cos(z[idx_z] * (i + plane_id - nf3/2) * flag);
+            temp.x += fw[idx_fw + temp_idx * i].x * cos(z[idx_z] * (i + plane_id - nf3/2) * flag) - fw[idx_fw + temp_idx * i].y * sin(z[idx_z] * (i + plane_id - nf3/2) * flag);
+            temp.y += fw[idx_fw + temp_idx * i].x * sin(z[idx_z] * (i + plane_id - nf3/2) * flag) + fw[idx_fw + temp_idx * i].y * cos(z[idx_z] * (i + plane_id - nf3/2) * flag);
         }
         fw_temp[idx_fw].x += temp.x;
         fw_temp[idx_fw].y += temp.y;

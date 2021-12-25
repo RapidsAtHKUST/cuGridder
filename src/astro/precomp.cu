@@ -166,8 +166,11 @@ void pre_setting(PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_vis, CURAFFT_PLAN *plan,
             plan->fw = NULL;
         }
 
-        checkCudaErrors(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * plan->nf1 * plan->nf2 * plan->nf3));
-        checkCudaErrors(cudaMemset(plan->fw, 0, plan->nf3 * plan->nf1 * plan->nf2 * sizeof(CUCPX)));
+        unsigned long long int fw_size = plan->nf1;
+        fw_size *= plan->nf2;
+        fw_size *= plan->nf3;
+        checkCudaErrors(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * fw_size));
+        checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
     }
 
     int n[] = {plan->nf2, plan->nf1};

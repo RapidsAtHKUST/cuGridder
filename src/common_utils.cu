@@ -139,7 +139,6 @@ __global__ void counting_hive(int *hive_count, int *histo_count, unsigned long i
 	unsigned int idx;
 	for(idx = blockIdx.x * blockDim.x + threadIdx.x; idx < M; idx += gridDim.x * blockDim.x){
 		hive_count[idx] = histo_count[idx*hivesize]+initial;
-		// printf("%d, %d\n",idx, hive_count[idx]);
 	}
 }
 
@@ -149,7 +148,7 @@ void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int 
   checkCudaErrors(cudaDeviceSynchronize());
 }
 
-void prefix_scan(int *d_arr, int *d_res, unsigned long int n, int flag)
+void prefix_scan(int *d_arr, int *d_res, unsigned long long int n, int flag)
 {
   /*
     n - number of elements

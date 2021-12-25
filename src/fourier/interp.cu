@@ -146,7 +146,7 @@ __global__ void interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 	int idx;
 	idx = blockDim.x * blockIdx.x + threadIdx.x;
 	int xx, yy, zz, ix, iy, iz;
-	unsigned int indx;
+	unsigned long long int indx;
 
 	PCS ker1[MAX_KERNEL_WIDTH];
 	PCS ker2[MAX_KERNEL_WIDTH];

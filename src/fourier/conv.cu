@@ -200,7 +200,7 @@ __global__ void conv_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw,
 	int idx;
 	idx = blockDim.x * blockIdx.x + threadIdx.x;
 	int xx, yy, zz, ix, iy, iz;
-	unsigned int outidx;
+	unsigned long long int outidx;
 
 	PCS ker1[MAX_KERNEL_WIDTH];
 	PCS ker2[MAX_KERNEL_WIDTH];
@@ -385,7 +385,7 @@ __global__ void conv_3d_outputdriven_shared_sparse(PCS *x, PCS *y, PCS *z, CUCPX
 		remove some variable or put to constant memory remove nbin
 	*/
 	
-	unsigned long int idx; // one hive by one hive
+	unsigned long long int idx; // one hive by one hive
 	unsigned long int M = nbin_x; // the threads are padded
 	M *= nbin_y;
 	M *= nbin_z;
@@ -393,7 +393,7 @@ __global__ void conv_3d_outputdriven_shared_sparse(PCS *x, PCS *y, PCS *z, CUCPX
 	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
 	{
 		int hive_x, hive_y, hive_z;
-		unsigned long int outidx;
+		unsigned long long int outidx;
 		// int bin_idx;
 		// load to shared memory __synchronize
 		// extern __shared__ CUCPX sh_fw[];
@@ -620,21 +620,22 @@ __global__ void conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS *z, CUC
 				// if flag = -1, cur_nupt_num changed
 				int cur_nupt_num;
 				if(flag<0)
-				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]+flag*SHARED_SIZE_SEG;
+				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]-hive_count[neighbor_info[hive_index]]+flag*SHARED_SIZE_SEG;
 				else
 				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]-hive_count[neighbor_info[hive_index]];
 				// if(threadIdx.x==0&&blockIdx.x==0)printf("number of point in hive %d: %d\n",hive_index,cur_nupt_num);
 				if(cur_hive_idx+cur_nupt_num<=SHARED_SIZE_SEG){
 					// load to shared mem
-					flag = hive_count[neighbor_info[hive_index]]; //reuse flag
+					int start_idx = hive_count[neighbor_info[hive_index]] - flag*SHARED_SIZE_SEG;
 					for(int j = threadIdx.x; j<cur_nupt_num; j+=blockDim.x){
 						// +++ shift here
-						sh_x[cur_hive_idx+j] = x[flag+j];
-						sh_y[cur_hive_idx+j] = y[flag+j];
-						sh_z[cur_hive_idx+j] = z[flag+j];
-						sh_c[cur_hive_idx+j] = c[flag+j]; // save those shifted stuff
+						sh_x[cur_hive_idx+j] = x[start_idx+j];
+						sh_y[cur_hive_idx+j] = y[start_idx+j];
+						sh_z[cur_hive_idx+j] = z[start_idx+j];
+						sh_c[cur_hive_idx+j] = c[start_idx+j]; // save those shifted stuff
 					}
 					cur_hive_idx+=cur_nupt_num;
+					flag = 0;
 				}
 				else{
 					// points in one hive can not load into shared mem
@@ -759,7 +760,7 @@ __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, C
 	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
 	{
 		int hive_x, hive_y, hive_z;
-		unsigned long int outidx;
+		unsigned long long int outidx;
 		// int bin_idx;
 		// load to shared memory __synchronize
 		// extern __shared__ CUCPX sh_fw[];
@@ -834,7 +835,7 @@ __global__ void partial_conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, C
 						temp3 = abs(temp3-bin_z-init_shift);
 						if(temp3>nf3_total/2.0)temp3 = abs(nf3_total - temp3);
 						if(temp3>=ns/2.0)continue;
-						if(k==91444&&blockIdx.x==3&&bin_x==31&&bin_y==4&&bin_z==2)printf("temp1 %lf\n",temp3);
+						// if(k==91444&&blockIdx.x==3&&bin_x==31&&bin_y==4&&bin_z==2)printf("temp1 %lf\n",temp3);
 						ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 						// if(outidx==575)printf("1st %.12lf, %lf\n",ker,temp1);
 
@@ -888,7 +889,7 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
 	{
 		int hive_x, hive_y, hive_z;
-		unsigned long int outidx;
+		unsigned long long int outidx;
 		// int bin_idx;
 		// load to shared memory __synchronize
 		// extern __shared__ CUCPX sh_fw[];
@@ -948,27 +949,28 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 				// if flag = -1, cur_nupt_num changed
 				int cur_nupt_num;
 				if(flag<0)
-				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]+flag*SHARED_SIZE_SEG;
+				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]-hive_count[neighbor_info[hive_index]]+flag*SHARED_SIZE_SEG;
 				else
 				cur_nupt_num = hive_count[neighbor_info[hive_index]+1]-hive_count[neighbor_info[hive_index]];
+				// if(threadIdx.x==315&&blockIdx.x==523779)printf("num %d %d\n",cur_nupt_num);
 				// if(threadIdx.x==0&&blockIdx.x==0)printf("number of point in hive %d: %d\n",hive_index,cur_nupt_num);
 				if(cur_hive_idx+cur_nupt_num<=SHARED_SIZE_SEG){
 					// load to shared mem
-					flag = hive_count[neighbor_info[hive_index]]; //reuse flag
+					int start_idx = hive_count[neighbor_info[hive_index]] - flag*SHARED_SIZE_SEG; //reuse flag
 					for(int j = threadIdx.x; j<cur_nupt_num; j+=blockDim.x){
 						// +++ shift here
-						sh_x[cur_hive_idx+j] = x[flag+j];
-						sh_y[cur_hive_idx+j] = y[flag+j];
-						sh_z[cur_hive_idx+j] = z[flag+j];
-						sh_c[cur_hive_idx+j] = c[flag+j]; // save those shifted stuff
+						sh_x[cur_hive_idx+j] = x[start_idx+j];
+						sh_y[cur_hive_idx+j] = y[start_idx+j];
+						sh_z[cur_hive_idx+j] = z[start_idx+j];
+						sh_c[cur_hive_idx+j] = c[start_idx+j]; // save those shifted stuff
 					}
 					cur_hive_idx+=cur_nupt_num;
+					flag = 0;
 				}
 				else{
 					// points in one hive can not load into shared mem
 					if(cur_hive_idx==0){
 						// fully occupy the shared mem
-						// printf("1 \n");
 						int start_idx_full = hive_count[neighbor_info[hive_index]] - flag * SHARED_SIZE_SEG;
 						for(int j = threadIdx.x; j<SHARED_SIZE_SEG; j+=blockDim.x){
 							// +++ shift here
@@ -1061,7 +1063,7 @@ __global__ void fisrt_hive_plane_nupt(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 	int idx;
 	idx = blockDim.x * blockIdx.x + threadIdx.x;
 	int xx, yy, ix, iy;
-	unsigned int outidx;
+	unsigned long long int outidx;
 
 	PCS ker1[MAX_KERNEL_WIDTH];
 	PCS ker2[MAX_KERNEL_WIDTH];

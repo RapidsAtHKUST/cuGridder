@@ -18,5 +18,5 @@ void show_mem_usage();
 int next235beven(int n, int b);
 void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int hive_count_size, int hivesize);
 void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int hive_count_size, int hivesize, int initial);
-void prefix_scan(int *d_arr, int *d_res, unsigned long int n, int flag);
+void prefix_scan(int *d_arr, int *d_res,  int unsigned long long n, int flag);
 #endif
