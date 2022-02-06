@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 	{
 		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize; //xxxxx remove
 		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize;
-		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 *100000;
+		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
 		vis[i].real(randm11()); // nrow vis per channel, weight?
 		vis[i].imag(randm11());
 		// wgt[i] = 1;
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
 	cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("[time  ] conv time:\t\t %.3g s\n", milliseconds / 1000);
+    printf("[time  ] total time:\t\t %.3g s\n", milliseconds / 1000);
 
 	printf("exection finished\n");
 

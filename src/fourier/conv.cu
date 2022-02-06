@@ -264,6 +264,332 @@ __global__ void conv_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw,
 }
 
 __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, PCS es_c, PCS es_beta, int pirange){
+	
+	unsigned long long int outidx;
+	int cur_hive_idx, cur_hive_x, cur_hive_y, cur_hive_z;
+	for(int idz = threadIdx.z + blockDim.z * blockIdx.z; idz < nf3; idz += blockDim.z * gridDim.z){
+		for(int idy = threadIdx.y + blockDim.y * blockIdx.y; idy < nf2; idy += blockDim.y * gridDim.y){
+			for(int idx = threadIdx.x + blockDim.x * blockIdx.x; idx < nf1; idx += blockDim.x * gridDim.x){
+				outidx = nf1*nf2;
+				outidx *= idz;
+				outidx += idx + idy * nf1;
+				
+				for(cur_hive_z = (blockIdx.z - 1); cur_hive_z< 2+(int)blockIdx.z; cur_hive_z++){
+					for(cur_hive_y = blockIdx.y - 1; cur_hive_y<(int)blockIdx.y+2; cur_hive_y++){
+						for(cur_hive_x = blockIdx.x - 1; cur_hive_x<(int)blockIdx.x+2; cur_hive_x++){
+					// for(int i=0; i<27; i++){
+					// 	cur_hive_idx = (i / 9 - 1 + blockIdx.z) % gridDim.z * gridDim.y * gridDim.x + (i % 9 / 3 - 1 + blockDim.y) * gridDim.x  + i % 3 - 1 + blockIdx.x;
+					
+							cur_hive_idx = cur_hive_x % gridDim.x +  cur_hive_y % gridDim.y * gridDim.x +  cur_hive_z % gridDim.z * gridDim.y * gridDim.x;
+							// if(idx==0&&idy==0&&idz==0)printf("++++++%d\n",cur_hive_idx);
+							
+							for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
+								// kernel evaluation
+								PCS ker;
+								PCS kervalue = 1.0;
+
+								PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
+								temp1 = abs(temp1-idx);
+								//++++ break if not in range
+								if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
+								if(temp1>=ns/2.0)continue; 
+
+								PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
+								temp2 = abs(temp2-idy);
+								if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
+								if(temp2>=ns/2.0)continue;
+
+								PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
+								temp3 = abs(temp3-idz);
+								if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
+								if(temp3>=ns/2.0)continue;
+								
+								ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
+
+								// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
+								kervalue = kervalue * ker;
+
+								ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
+
+								// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
+								kervalue = kervalue * ker;
+								ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
+
+								// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
+								kervalue = kervalue * ker;
+								
+								fw[outidx].x += c[k].x * kervalue;
+								fw[outidx].y += c[k].y * kervalue;
+							}
+					}
+						}
+					}
+				// }
+			}
+		}
+	}
+}
+
+__global__ void conv_3d_outputdriven_t(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
+	/*
+		one thread handles t*t elements.
+	*/
+	unsigned long int idx;
+	unsigned long int M = nhive_x; // revise
+	M *= nhive_y;
+	M *= nhive_z;
+
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+		int hive_x, hive_y, hive_z;
+		unsigned long long int outidx;
+		int cur_hive_idx;
+		
+		hive_x = idx % nhive_x;
+		hive_y = idx / nhive_x % nhive_y;
+		hive_z = idx / (nhive_x*nhive_y);
+
+		int bin_x, bin_y, bin_z;
+		int cur_hive_x, cur_hive_y, cur_hive_z;
+
+		bin_x = hivesize_x*hive_x;
+		bin_y = hivesize_y*hive_y;
+		bin_z = hivesize_z*hive_z;
+		 
+		for(int cur_plane = floor(hive_x-ns/2.0); cur_plane< ceil(hive_x+ns/2.0); cur_plane++){
+			cur_hive_x = cur_plane;
+			for(int j=0; j<9; j++){
+				cur_hive_x = cur_plane;
+				cur_hive_y = hive_y + j % 3 - 1;
+				cur_hive_z = hive_z + j / 3 - 1;
+				if(cur_hive_x >= nhive_x || cur_hive_x < 0) cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+				if(cur_hive_y >= nhive_y || cur_hive_y < 0) cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+				if(cur_hive_z >= nhive_z || cur_hive_z < 0) cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+				cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
+				for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
+					PCS ker1, ker2, ker3;
+					PCS kervalue = 1.0;
+
+					PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
+					PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
+					PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
+
+					cur_hive_x = hivesize_x*hivesize_y*hivesize_z; 
+
+					for(int i=0; i<cur_hive_x; i++){
+						outidx = nf1*nf2;
+						outidx *= bin_z+i/hivesize_x/hivesize_y;
+						outidx += bin_x + i % hivesize_x + (bin_y + i/hivesize_x%hivesize_y) * nf1;
+						
+						// distance
+						ker1 = abs(bin_x + i % hivesize_x - temp1);
+						// if(outidx==36&&k==10)printf("....%.3lf %d %.3lf \n",x[k],bin_x + i % hivesize_x,temp1);
+						if(ker1>nf1/2.0)ker1 = abs(nf1 - ker1);
+						if(ker1>=ns/2.0)continue; 
+						ker2 = abs(bin_y + i/hivesize_x%hivesize_y - temp2);
+						if(ker2>nf2/2.0)ker2 = abs(nf2 - ker2);
+						if(ker2>=ns/2.0)continue;
+						ker3 = abs(bin_z + i/hivesize_x/hivesize_y - temp3);
+						if(ker3>nf3/2.0)ker3 = abs(nf3 - ker3);
+						if(ker3>=ns/2.0)continue;
+						if(outidx>=(unsigned int)nf1*nf2*nf3)continue;
+						
+						ker1 = exp(es_beta * (sqrt(1.0 - es_c * ker1  * ker1 )));
+
+						ker2 = exp(es_beta * (sqrt(1.0 - es_c * ker2  * ker2 )));
+						
+						ker3 = exp(es_beta * (sqrt(1.0 - es_c * ker3  * ker3 )));
+						kervalue = ker1 * ker2 * ker3;
+
+						fw[outidx].x += c[k].x * kervalue;
+						fw[outidx].y += c[k].y * kervalue;
+					}
+				}
+			}
+		}
+	}
+}
+
+__global__ void conv_3d_outputdriven_t2(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int nz, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
+	/*
+		one thread handles t elements.
+	*/
+	unsigned long int idx;
+	unsigned long int M = nhive_x * hivesize_x; // revise
+	M *= nhive_y * hivesize_y;
+	M *= (nhive_z-1)/nz + 1;
+
+	
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+		int hive_x, hive_y, hive_z;
+		unsigned long long int outidx;
+		int cur_hive_idx;
+		
+		cur_hive_idx = blockIdx.x; // current hive idx
+		hive_x = cur_hive_idx % nhive_x;
+		hive_y = cur_hive_idx / nhive_x % nhive_y;
+		hive_z = cur_hive_idx / (nhive_x*nhive_y);
+
+		int bin_x, bin_y, bin_z;
+		int cur_hive_x, cur_hive_y, cur_hive_z;
+		bin_x = hive_x * hivesize_x + threadIdx.x % hivesize_x;
+		bin_y = hive_y * hivesize_y + threadIdx.x / hivesize_x % hivesize_y;
+		bin_z = hive_z * nz;
+		// if(idx==66)printf("%d %d %d \n",bin_x, blockIdx.x, hivesize_x);
+
+		for(int iz=0; iz< nz; iz++){
+			outidx = nf1 * nf2;
+			outidx *= bin_z + iz;
+			outidx += bin_x + bin_y * nf1;
+			// if(idx==264)printf("%lu %d %d %d\n",outidx, bin_x, bin_y, bin_z);
+			for(int cur_plane = floor(bin_z + iz -ns/2.0); cur_plane< ceil(bin_z + iz +ns/2.0); cur_plane++){
+				// if(idx==264)printf("______\n");
+				for(int j=0; j<9; j++){
+					cur_hive_x = hive_x + j % 3 - 1;
+					cur_hive_y = hive_y + j / 3 - 1;
+					cur_hive_z = cur_plane;
+					
+					if(cur_hive_x >= nhive_x || cur_hive_x < 0) cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+					if(cur_hive_y >= nhive_y || cur_hive_y < 0) cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+					if(cur_hive_z >= nhive_z || cur_hive_z < 0) cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+					cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
+					// if(idx==0&&iz==0)printf("%d ________\n",hive_count[cur_hive_idx+1]-hive_count[cur_hive_idx]);
+					// if(outidx==200)printf("%d\n",cur_hive_idx);
+					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
+						// PCS ker1, ker2, ker3;
+						PCS kervalue = 1.0;
+
+						PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
+						PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
+						PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
+						
+						// distance
+						temp1 = abs(bin_x - temp1);
+						// if(outidx==36&&k==10)printf("....%.3lf %d %.3lf \n",x[k],bin_x + i % hivesize_x,temp1);
+						if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
+						if(temp1>=ns/2.0)continue; 
+						temp2 = abs(bin_y - temp2);
+						if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
+						if(temp2>=ns/2.0)continue;
+						temp3 = abs(bin_z + iz - temp3);
+						if(temp3>nf3/2.0)temp3 = abs(nf3 - temp3);
+						if(temp3>=ns/2.0)continue;
+						if(outidx>=(unsigned int)nf1*nf2*nf3)continue;
+						// if(outidx==588)printf("%.5g %.5g %.5g %d\n",x[k],y[k],z[k],idx);
+						
+						kervalue *= exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
+
+						kervalue *= exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
+						
+						kervalue *= exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
+
+						fw[outidx].x += c[k].x * kervalue;
+						fw[outidx].y += c[k].y * kervalue;
+					}
+				}
+			}
+
+		}
+	}
+}
+
+__global__ void conv_3d_outputdriven_t1(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int nz, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
+	/*
+		one thread handles t elements.
+	*/
+	unsigned long int idx;
+	unsigned long int M = nhive_x * hivesize_x; // revise
+	M *= nhive_y * hivesize_y;
+	M *= (nhive_z-1)/nz + 1;
+	
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+		int hive_x, hive_y, hive_z;
+		unsigned long long int outidx;
+		int cur_hive_idx;
+		
+		cur_hive_idx = blockIdx.x; // current hive idx
+		hive_x = cur_hive_idx % nhive_x;
+		hive_y = cur_hive_idx / nhive_x % nhive_y;
+		hive_z = cur_hive_idx / (nhive_x*nhive_y);
+
+		int bin_x, bin_y, bin_z;
+		int cur_hive_x, cur_hive_y, cur_hive_z;
+		bin_x = hive_x * hivesize_x + threadIdx.x % hivesize_x;
+		bin_y = hive_y * hivesize_y + threadIdx.x / hivesize_x % hivesize_y;
+		bin_z = hive_z * nz;
+
+		for(int cur_plane = floor(bin_z -ns/2.0); cur_plane< ceil(bin_z + nz +ns/2.0); cur_plane++){
+			for(int j=0; j<9; j++){
+				cur_hive_x = hive_x + j % 3 - 1;
+				cur_hive_y = hive_y + j / 3 - 1;
+				cur_hive_z = cur_plane;
+				
+				if(cur_hive_x >= nhive_x || cur_hive_x < 0) cur_hive_x -= ((cur_hive_x > 0) - (cur_hive_x < 0))*nhive_x;
+				if(cur_hive_y >= nhive_y || cur_hive_y < 0) cur_hive_y -= ((cur_hive_y > 0) - (cur_hive_y < 0))*nhive_y;
+				if(cur_hive_z >= nhive_z || cur_hive_z < 0) cur_hive_z -= ((cur_hive_z > 0) - (cur_hive_z < 0))*nhive_z;
+				cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
+				// if(idx==6&&cur_plane==2)printf("%d\n",hive_count[cur_hive_idx+1]-hive_count[cur_hive_idx]);
+				for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
+					// PCS ker1, ker2, ker3;
+					PCS kervalue = 1.0;
+
+					PCS temp1 = SHIFT_RESCALE(x[k], nf1, pirange); //save
+					PCS temp2 = SHIFT_RESCALE(y[k], nf2, pirange);
+					PCS temp3 = SHIFT_RESCALE(z[k], nf3, pirange);
+
+					// if(idx==6&&cur_plane==2) printf("%.5lf %.5lf %.5lf %d\n",x[k],y[k],z[k],idx);
+					
+					// reuse the distance x,y distance same, z distance ++
+					// distance
+					temp1 = abs(bin_x - temp1);
+					if(temp1>nf1/2.0)temp1 = abs(nf1 - temp1);
+					if(temp1>=ns/2.0)continue; 
+					temp2 = abs(bin_y - temp2);
+					if(temp2>nf2/2.0)temp2 = abs(nf2 - temp2);
+					if(temp2>=ns/2.0)continue;
+					// if(idx==1&& cur_plane <= bin_z+ns/2.0)printf("%.5lf %.5lf %.5lf\n",x[k],y[k],z[k]);
+
+					temp1 = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
+
+					temp2 = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
+
+					
+					for(int i=0; i<ns+1; i++){
+						if(cur_plane - (int)floor(ns/2.0) + i<bin_z)continue;
+						if(cur_plane - (int)floor(ns/2.0) + i>=bin_z+nz)break;
+
+						outidx = nf1 * nf2;
+						outidx *= cur_plane - (int)floor(ns/2.0) + i;
+						outidx += bin_x + bin_y * nf1;
+
+						// if(idx==1&& cur_plane <= bin_z+ns/2.0)printf("%lu %d %d %d----\n",outidx,cur_plane, bin_y, cur_plane - (int)floor(ns/2.0) + i);
+
+						kervalue = abs(cur_plane - floor(ns/2.0) + i - temp3);
+						if(kervalue>nf3/2.0)kervalue = abs(nf3 - kervalue);
+						if(kervalue>=ns/2.0)continue;
+						if(outidx>=(unsigned int)nf1*nf2*nf3)continue;
+
+						// if(outidx==9219) printf("%.5lf %.5lf %.5lf %d\n",x[k],y[k],z[k],idx);
+						// if(outidx==9219&&idx==3) printf("%d %d\n",bin_z,bin_z+nz);
+						kervalue = exp(es_beta * (sqrt(1.0 - es_c * kervalue  * kervalue )));
+						// if(outidx==577) printf("%.5lf %.5lf %.5lf %d\n",kervalue,temp1,temp2,idx);
+						fw[outidx].x += c[k].x * kervalue * temp1 * temp2;
+						fw[outidx].y += c[k].y * kervalue * temp1 * temp2;
+					}
+				}
+			}
+		}
+	}
+}
+
+
+__global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
 	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
 	/*
 		blocksize = 8*8*8 if change may need to revise
@@ -324,7 +650,7 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 					if (flag==0) continue; // exceeding the boundart and nf < 3
 					cur_hive_idx = cur_hive_x + cur_hive_y * nhive_x + cur_hive_z * nhive_x * nhive_y;
 					// if(outidx==616)printf("%d,%d,%d,%d,%lu\n",cur_hive_idx,cur_hive_x,cur_hive_y,cur_hive_z,idx);
-					
+
 					//if(cur_hive_idx>=nhive_x*nhive_y*nhive_z||cur_hive_idx<0)printf("%d,%d,%d,%d,%d ",cur_hive_idx, hive_x,hive_y, hive_z,flag);
 					for(int k=hive_count[cur_hive_idx]; k<hive_count[cur_hive_idx+1]; k++){ 
 						// kernel evaluation
@@ -348,16 +674,18 @@ __global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw
 						if(temp3>=ns/2.0)continue;
 						ker = exp(es_beta * (sqrt(1.0 - es_c * temp1  * temp1 )));
 						// if(outidx==575)printf("1st %.12lf, %lf\n",ker,temp1);
-
+						// if(outidx==4614)printf("%.5lf\n",ker);
 						// kervalue_evaluate(ker, temp, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 
 						ker = exp(es_beta * (sqrt(1.0 - es_c * temp2  * temp2 )));
 						// if(outidx==575)printf("2nd %.12lf\n",ker);
+						// if(outidx==577)printf("%.5lf\n",ker);
 
 						// kervalue_evaluate(ker, temp2, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
 						ker = exp(es_beta * (sqrt(1.0 - es_c * temp3  * temp3 )));
+						// if(outidx==577)printf("%.5lf\n",ker);
 
 						// kervalue_evaluate(ker, temp3, ns, es_c, es_beta);
 						kervalue = kervalue * ker;
@@ -1121,6 +1449,114 @@ __global__ void fisrt_hive_plane_nupt(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 		}
 	}
 }
+
+__global__ void conv_3d_nputsdriven_taylor(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, PCS *c0, int M,
+									const int ns, int nf1, int nf2, int nf3, int pirange)
+{
+	/*
+		x, y, z - range [-pi,pi)
+		c - complex number
+		fw - result
+		M - number of nupts
+		ns - kernel width
+		nf1, nf2, nf3 - upts
+		es_ - gridding kernel related factors
+		pirange - 1
+	*/
+
+	int idx;
+	idx = blockDim.x * blockIdx.x + threadIdx.x;
+	int xx, yy, zz, ix, iy, iz;
+	unsigned long long int outidx;
+
+	PCS ker1[MAX_KERNEL_WIDTH];
+	PCS ker2[MAX_KERNEL_WIDTH];
+	PCS ker3[MAX_KERNEL_WIDTH];
+
+	PCS temp1, temp2, temp3;
+
+	double ns_2 = 2 / (double) ns;
+	double seg_s = ns_2 * SHARED_SIZE_SEG;
+	double num_s_1 = 1 / (double) SHARED_SIZE_SEG;
+	__shared__ PCS sh_c0[SHARED_SIZE_SEG*SEG_ORDER];
+	for(idx = threadIdx.x; idx<SHARED_SIZE_SEG*SEG_ORDER; idx+=blockDim.x){
+		sh_c0[idx] = c0[idx];
+	}
+	__syncthreads();
+
+	// assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
+
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+
+		//value of x, shift and rescale to [0,N) and get the locations
+		temp1 = SHIFT_RESCALE(x[idx], nf1, pirange);
+		temp2 = SHIFT_RESCALE(y[idx], nf2, pirange);
+		temp3 = SHIFT_RESCALE(z[idx], nf3, pirange);
+		
+		int xstart = ceil(temp1 - ns / 2.0);
+		int ystart = ceil(temp2 - ns / 2.0);
+		int zstart = ceil(temp3 - ns / 2.0);
+		int xend = floor(temp1 + ns / 2.0);
+		int yend = floor(temp2 + ns / 2.0);
+		int zend = floor(temp3 + ns / 2.0);
+
+		PCS x1 = (PCS)xstart - temp1;
+		PCS y1 = (PCS)ystart - temp2;
+		PCS z1 = (PCS)zstart - temp3;
+
+		for (int i = 0; i < ns; i++)
+		{
+			int seg_idx = abs(x1 + i) * seg_s;
+			double dis = abs(x1 + i) * ns_2 - num_s_1 * seg_idx;
+			seg_idx *= SEG_ORDER;
+			ker1[i] = (abs(x1 + i) >= ns / 2.0) ? 0.0 : sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
+			seg_idx = abs(y1 + i) * seg_s;
+			dis = abs(y1 + i) * ns_2 - num_s_1 * seg_idx;
+			seg_idx *= SEG_ORDER;
+			dis = abs(y1 + i);
+			ker2[i] = (abs(y1 + i) >= ns / 2.0) ? 0.0 : sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
+			seg_idx = abs(y1 + i) * seg_s;
+			dis = abs(y1 + i) * ns_2 - num_s_1 * seg_idx;
+			seg_idx *= SEG_ORDER;
+			ker2[i] = (abs(z1 + i) >= ns / 2.0) ? 0.0 : sh_c0[seg_idx] + dis*(sh_c0[seg_idx+1] + dis*(sh_c0[seg_idx+2] + dis*(sh_c0[seg_idx+3]+dis*sh_c0[seg_idx+4])));
+		}
+
+		// val_kernel_vec(ker1, x1, ns, es_c, es_beta);
+		// val_kernel_vec(ker2, y1, ns, es_c, es_beta);
+		// val_kernel_vec(ker3, z1, ns, es_c, es_beta);
+
+		for (zz = zstart; zz <= zend; zz++)
+		{
+			temp3 = ker3[zz - zstart];
+			for (yy = ystart; yy <= yend; yy++)
+			{
+				temp2 = ker2[yy - ystart];
+				for (xx = xstart; xx <= xend; xx++)
+				{
+					//due to the peroid, the index out of range need to be handle
+					ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
+					iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
+					iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
+					outidx = nf1 * nf2;
+					outidx *= iz;
+					outidx += ix + iy * nf1;
+					temp1 = ker1[xx - xstart];
+					PCS kervalue = temp1 * temp2 * temp3;
+					// fw[outidx].x += c[idx].x * kervalue;
+					// fw[outidx].y += c[idx].y * kervalue;
+					// if(outidx==616)printf("%lf,%lf,%lf,%lf\n",x[idx],x1+xx-xstart,y1+yy-ystart,z1+zz-zstart);
+					atomicAdd(&fw[outidx].x, c[idx].x * kervalue);
+					atomicAdd(&fw[outidx].y, c[idx].y * kervalue);
+					//printf("the out id %d kervalue %2.2g\n",outidx,kervalue);
+				}
+			}
+		}
+		//if((idx/blockDim.x+1)*blockDim.x<M){ __syncthreads(); }
+	}
+}
+
+
 // __global__ void conv_3d_outputdriven_shared_hive_lut_constant(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
 // 	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange){
 // 	/*

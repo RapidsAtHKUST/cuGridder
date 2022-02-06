@@ -61,4 +61,16 @@ __global__ void partial_conv_3d_outputdriven_shared_hive_lut(PCS *x, PCS *y, PCS
 
 __global__ void fisrt_hive_plane_nupt(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int M,
 									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int flag, int pirange);
+
+__global__ void conv_3d_nputsdriven_taylor(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, PCS *c0, int M,
+									const int ns, int nf1, int nf2, int nf3, int pirange);
+
+__global__ void conv_3d_outputdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, PCS es_c, PCS es_beta, int pirange);
+
+__global__ void conv_3d_outputdriven_t(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int nbin_x, int nbin_y, int nbin_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange);
+
+__global__ void conv_3d_outputdriven_t1(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int* hive_count, const int ns, int nf1, int nf2,
+	 int nf3, int nz, int hivesize_x, int hivesize_y, int hivesize_z, int nhive_x, int nhive_y, int nhive_z, PCS es_c, PCS es_beta, int pirange);
 #endif

@@ -132,59 +132,82 @@ int bin_mapping(CURAFFT_PLAN *plan, PCS *uvw){
     checkCudaErrors(cudaMalloc((void **)&d_w_out,sizeof(PCS)*M));
     checkCudaErrors(cudaMalloc((void **)&d_c_out,sizeof(CUCPX)*M));
     checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin,sizeof(int)*M));
-    if(method==2||method==3||method==4){ // sufficient memory // a litter messy
-      int nhive[3];
-      nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
-      nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
-      nhive[2] = (nf3-1)/plan->hivesize[2] + 1;
+
+    int nhive[3];
+    nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
+    nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
+    nhive[2] = (nf3-1)/plan->hivesize[2] + 1;
+
+    if(method==2||method==3||method==4||method==5||method==6){ // sufficient memory // a litter messy
 
       if((nhive[0]<3||nhive[1]<3||nhive[2]<3)&&method!=2){
         printf("exit one hive size smaller than 3, automatically switch to method 2\n");
         method = 2;
         plan->opts.gpu_gridder_method = 2;
       }
-    
-      unsigned long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
-      histo_count_size *= nhive[1]*plan->hivesize[1];
-      histo_count_size *= nhive[2]*plan->hivesize[2];
-      histo_count_size ++;
-      // printf("%lu\n",histo_count_size);
-      // printf("nf1 nf2 nf3 %d, %d, %d\n",plan->nf1,plan->nf2,plan->nf3);
-      int hive_count_size = nhive[0] * nhive[1] * nhive[2] + 1;
-      // printf("%d\n",hive_count_size);
-      
-      // show_mem_usage();
-      checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
-      // show_mem_usage();
 
-      checkCudaErrors(cudaMalloc((void **)&plan->hive_count,sizeof(int)*(hive_count_size)));
-      checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
-      checkCudaErrors(cudaDeviceSynchronize());
-      histogram_3d_sparse_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,plan->copts.pirange);
-      // show_mem_usage();
-      prefix_scan(plan->histo_count,plan->histo_count,histo_count_size,0);
-      // calculate hive count
-      // printf("%d\n",plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2]);
-      counting_hive_invoker(plan->hive_count, plan->histo_count, hive_count_size, plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2]);
-      
-      mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,method,plan->copts.pirange);
+      // if(method==2){
+      //   checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(nhive[0]*nhive[1]*nhive[2]+1)));
+      //   // checkCudaErrors(cudaMalloc((void **)&plan->se_loc,sizeof(int2)*M));
+      //   checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nhive[0]*nhive[1]*nhive[2]+1)));
+      //   histogram_3d_ignore_inbinorder_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,plan->copts.pirange);
+      //   prefix_scan(plan->histo_count,plan->histo_count,nhive[0]*nhive[1]*nhive[2]+1,0);
+      //   mapping_based_gather_3d_ignore_ibo_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,plan->copts.pirange);
+      //   int hive_count_size = nhive[0] * nhive[1] * nhive[2] + 1;
+      //   checkCudaErrors(cudaMalloc((void **)&plan->hive_count,sizeof(int)*(hive_count_size)));
+      //   checkCudaErrors(cudaMemcpy(plan->hive_count, plan->histo_count, sizeof(int)*hive_count_size,cudaMemcpyDeviceToDevice));
+      //   printf("correct direction !!!\n");
+      // }
+      // else{
+        unsigned long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
+        histo_count_size *= nhive[1]*plan->hivesize[1];
+        histo_count_size *= nhive[2]*plan->hivesize[2];
+        histo_count_size ++;
+        // printf("%lu\n",histo_count_size);
+        // printf("nf1 nf2 nf3 %d, %d, %d\n",plan->nf1,plan->nf2,plan->nf3);
+        int hive_count_size = nhive[0] * nhive[1] * nhive[2] + 1;
+        // printf("hive count size %d\n", hive_count_size);
+        // printf("hivesize %d %d %d\n",plan->hivesize[0],plan->hivesize[1],plan->hivesize[2]);
+        // printf("%d\n",hive_count_size);
+        
+        // show_mem_usage();
+        checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
+        // show_mem_usage();
+
+        checkCudaErrors(cudaMalloc((void **)&plan->hive_count,sizeof(int)*(hive_count_size)));
+        checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
+        checkCudaErrors(cudaDeviceSynchronize());
+        histogram_3d_sparse_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,plan->copts.pirange);
+        // show_mem_usage();
+        prefix_scan(plan->histo_count,plan->histo_count,histo_count_size,0);
+        // calculate hive count
+        // printf("%d\n",plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2]);
+        counting_hive_invoker(plan->hive_count, plan->histo_count, hive_count_size, plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2]);
+        
+        mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,method,plan->copts.pirange);
+      // }
     }
     else if(method==1){ // partical mapping
-      checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(nf1*nf2+1)));
-      checkCudaErrors(cudaMalloc((void **)&plan->se_loc,sizeof(int2)*M));
-      checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nf1*nf2+1)));
-      int init_scan_value = 0;
-      for(int i=0; i<nf3; i++){
-        part_histogram_3d_sparse_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,i,plan->copts.pirange);
-        prefix_scan(plan->histo_count,plan->histo_count,nf1*nf2+1,0);
-        part_mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,plan->se_loc,M,nf1,nf2,nf3,i,init_scan_value,plan->copts.pirange);
-        int last_value;
-        checkCudaErrors(cudaMemcpy(&last_value,plan->histo_count+nf1*nf2,sizeof(int),cudaMemcpyDeviceToHost));
-        init_scan_value += last_value;
-        /// ++++ plane array
-        checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nf1*nf2+1)));
-      }
-      if(method == 1)checkCudaErrors(cudaFree(plan->se_loc));
+      checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(nhive[0]*nhive[1]*nhive[2]+1)));
+      // checkCudaErrors(cudaMalloc((void **)&plan->se_loc,sizeof(int2)*M));
+      checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nhive[0]*nhive[1]*nhive[2]+1)));
+      histogram_3d_ignore_inbinorder_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,plan->copts.pirange);
+      prefix_scan(plan->histo_count,plan->histo_count,nhive[0]*nhive[1]*nhive[2]+1,0);
+      mapping_based_gather_3d_ignore_ibo_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,plan->hivesize,nhive,plan->copts.pirange);
+    
+      // int init_scan_value = 0;
+
+      // for(int i=0; i<nf3; i++){
+      //   part_histogram_3d_sparse_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,nf3,i,plan->copts.pirange);
+      //   prefix_scan(plan->histo_count,plan->histo_count,nf1*nf2+1,0);
+      //   part_mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,plan->se_loc,M,nf1,nf2,nf3,i,init_scan_value,plan->copts.pirange);
+      //   int last_value;
+      //   checkCudaErrors(cudaMemcpy(&last_value,plan->histo_count+nf1*nf2,sizeof(int),cudaMemcpyDeviceToHost));
+      //   init_scan_value += last_value;
+      //   /// ++++ plane array
+      //   checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(nf1*nf2+1)));
+      // }
+      // if(method == 1)checkCudaErrors(cudaFree(plan->se_loc));
     }
     if(uvw==NULL){
       checkCudaErrors(cudaFree(plan->d_u));
@@ -383,12 +406,20 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
   // cudaEventRecord(start);
   if (method == 0 || method==1)
   {
-    block.x = 256;
+    block.x = 32;
     grid.x = (M - 1) / block.x + 1;
     // if the image resolution is small, the memory is sufficiently large for output after conv. 
-    conv_3d_nputsdriven<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->M,
+    if(!plan->opts.gpu_kerevalmeth){
+      conv_3d_nputsdriven<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->M,
                                           plan->copts.kw, nf1, nf2, nf3, plan->copts.ES_c, plan->copts.ES_beta,
                                           plan->copts.pirange);
+    }
+    else{
+      conv_3d_nputsdriven_taylor<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->c0, plan->M,
+                                          plan->copts.kw, nf1, nf2, nf3, plan->copts.pirange);
+    }
+
+    
     checkCudaErrors(cudaDeviceSynchronize());
     // float milliseconds = 0;
 		// cudaEventRecord(stop);
@@ -398,7 +429,19 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
 		// milliseconds,plan->opts.gpu_kerevalmeth);
     
   }
+  // else if (method==2){
+  //   block.x = plan->hivesize[0];
+  //   block.y = plan->hivesize[1];
+  //   block.z = plan->hivesize[2];
+  //   grid.x = (nf1-1)/plan->hivesize[0] + 1;
+  //   grid.y = (nf2-1)/plan->hivesize[1] + 1;
+  //   grid.z = (nf3-1)/plan->hivesize[2] + 1;
+
+  //   conv_3d_outputdriven<<<grid,block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, nf1, nf2, nf3, plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
+  //   checkCudaErrors(cudaDeviceSynchronize());
+  // }
   else{
+    // save RF
     block.x = plan->hivesize[0]*plan->hivesize[1]*plan->hivesize[2];
     int nhive[3];
     nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
@@ -425,10 +468,27 @@ int conv_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
                                           nf1, nf2, nf3, plan->hivesize[0]*nhive[0], plan->hivesize[1]*nhive[1], plan->hivesize[2]*nhive[2], 
                                           nhive[0], nhive[1], nhive[2], plan->copts.pirange);
     }
+    if(method==5) {
+      block.x = 64;
+      grid.x = (grid.x-1)/block.x+1;
+      conv_3d_outputdriven_t<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
+                                          nf1, nf2, nf3, plan->hivesize[0], plan->hivesize[1], plan->hivesize[2], 
+                                          nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
+    }
+    if(method==6){
+      block.x = 64;
+      int nz = 8; // will effect performance have fine grained 
+      grid.x = nhive[0]*nhive[1]*((nf3-1)/nz + 1);
+      // printf("%d\n",grid.x);
+      conv_3d_outputdriven_t1<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->hive_count, plan->copts.kw, 
+                                          nf1, nf2, nf3, nz, plan->hivesize[0], plan->hivesize[1], plan->hivesize[2], 
+                                          nhive[0], nhive[1], nhive[2], plan->copts.ES_c, plan->copts.ES_beta, plan->copts.pirange);
+    
+    }
     checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaFree(plan->hive_count));
     if(plan->opts.gpu_kerevalmeth)checkCudaErrors(cudaFree(plan->c0));
-    
+
     cudaError_t err = cudaGetLastError();
 
     if ( err != cudaSuccess )

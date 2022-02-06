@@ -202,6 +202,67 @@ void final_hive_plane_bin_mapping(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, 
   checkCudaErrors(cudaDeviceSynchronize());
 }
 
+__global__ void histogram_3d_ignore_inbinorder(PCS *x, PCS *y, PCS *z, int *sortidx_hive, int *histo_count, int N_v,
+    int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z,
+    int nhive_x, int nhive_y, int nhive_z, int pirange){
+  
+  int idx;
+  int bin_x, bin_y, bin_z;
+  unsigned long int hive_idx;
+  for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
+    // get bin index
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
+    int hive_x = bin_x / hivesize_x;
+    int hive_y = bin_y / hivesize_y;
+    int hive_z = bin_z / hivesize_z;
+
+    hive_idx = hive_x + hive_y * nhive_x + hive_z * nhive_x * nhive_y;
+    int old = atomicAdd(&histo_count[hive_idx],1);
+    sortidx_hive[idx] = old;
+  }
+}
+
+void histogram_3d_ignore_inbinorder_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_hive, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize,
+    int *nhive, int pirange){
+  int blocksize = 256;
+  histogram_3d_ignore_inbinorder<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,sortidx_hive,histo_count,N_v,nf1,nf2,nf3,hivesize[0],hivesize[1],hivesize[2],nhive[0],nhive[1],nhive[2],pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+}
+
+__global__ void mapping_based_gather_3d_ignore_ibo(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int nhive_x, int nhive_y, int nhive_z, int hivesize_x, int hivesize_y, int hivesize_z, int pirange){
+  
+  int idx;
+  int bin_x, bin_y, bin_z;
+  unsigned long int hive_idx;
+  for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N_v; idx+=blockDim.x*gridDim.x){
+    // get bin index
+    bin_x = floor(SHIFT_RESCALE(x[idx], nf1, pirange));
+		bin_y = floor(SHIFT_RESCALE(y[idx], nf2, pirange));
+		bin_z = floor(SHIFT_RESCALE(z[idx], nf3, pirange));
+    int hive_x = bin_x / hivesize_x;
+    int hive_y = bin_y / hivesize_y;
+    int hive_z = bin_z / hivesize_z;
+
+    hive_idx = hive_x + hive_y * nhive_x + hive_z * nhive_x * nhive_y;
+
+    int loc = histo_count[hive_idx] + sortidx_bin[idx];
+    x_out[loc] = x[idx];
+    y_out[loc] = y[idx];
+    z_out[loc] = z[idx];
+    c_out[loc] = c[idx];
+  }
+}
+
+void mapping_based_gather_3d_ignore_ibo_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
+    int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int *nhive, int pirange){
+  int blocksize = 256;
+  mapping_based_gather_3d_ignore_ibo<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,nhive[0],nhive[1],nhive[2],hivesize[0],hivesize[1],hivesize[2],pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+}
+
 
 __global__ void part_histogram_3d_cube(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
     int N_v, int nf1, int nf2, int nf3, int hivesize_x, int hivesize_y, int hivesize_z, 
@@ -381,7 +442,7 @@ __global__ void mapping_based_gather_3d_replace(PCS *x, PCS *y, PCS *z, CUCPX *c
 void mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
     int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int* nhive, int method, int pirange){
   int blocksize = 256;
-  if(method==2)
+  if(method==2||method==5||method==6)
   mapping_based_gather_3d<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
   if(method==3||method==4)mapping_based_gather_3d_replace<<<(N_v-1)/blocksize+1,blocksize>>>(x,y,z,c,x_out,y_out,z_out,c_out,sortidx_bin,histo_count,N_v,nf1,nf2,nf3,hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
   checkCudaErrors(cudaDeviceSynchronize());

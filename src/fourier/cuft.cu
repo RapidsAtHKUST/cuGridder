@@ -245,6 +245,8 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
     //         std::cerr << "err: invalid method " << std::endl;
     // }
     if(plan->opts.gpu_gridder_method){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=8;};
+    if(plan->opts.gpu_gridder_method==5){plan->hivesize[0]=1;plan->hivesize[1]=8;plan->hivesize[2]=8;};
+    if(plan->opts.gpu_gridder_method==6){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=1;};
     // correction factor memory allocation
     if (!plan->opts.gpu_conv_only)
     {
