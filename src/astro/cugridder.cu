@@ -138,13 +138,7 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     
     ier = setup_conv_opts(plan->copts, tol, sigma, plan->copts.pirange, direction, kerevalmeth); //check the arguements pirange = 1
     
-   if(kerevalmeth==1){
-        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
-        taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,kerevalmeth);
-		checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
-		checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
-        free(h_c0);
-    }
+   if(kerevalmeth==1)taylor_coefficient_setting(plan);
 
     int fftsign = (direction > 0) ? 1 : -1;
     plan->iflag = fftsign; 
@@ -181,7 +175,7 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     checkCudaErrors(cudaMemGetInfo(&free_byte, &total_byte));
     // int max_w_p = free_byte / nf1 / nf2 / 16;
     int max_w_p = (free_byte - total_byte + free_byte) / nf1 / nf2 / 16;
-    // max_w_p=25;
+    // max_w_p=24;
     if(nf3>=max_w_p){
         nf3 = max_w_p / 8 * 8; // < max_w_p 
         plan->mem_limit = gridder_plan->num_w;
@@ -200,59 +194,11 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     plan->execute_flow = 1;
     //plan->fw = NULL; 
     batchsize = gridder_plan->num_w;
-
-    // plan->copts.direction = direction; // 1 inverse, 0 forward
-
-    // fourier_series_appro_invoker(plan->fwkerhalf1, plan->copts, plan->nf1 / 2 + 1);
-    // fourier_series_appro_invoker(plan->fwkerhalf2, plan->copts, plan->nf2 / 2 + 1);
-
-    // if (w_term_method)
-    // {
-    //     // improved_ws
-    //     checkCudaErrors(cudaFree(plan->fwkerhalf3));
-    //     checkCudaErrors(cudaMalloc((void **)&plan->fwkerhalf3, sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1)));
-        
-    //     fourier_series_appro_invoker(plan->fwkerhalf3, plan->d_x, plan->copts, (N1 / 2 + 1) * (N2 / 2 + 1)); // correction with k, may be wrong, k will be free in this function
-    // }
-
-    // PCS *fwkerhalf1 = (PCS *)malloc(sizeof(PCS) * (plan->nf1 / 2 + 1));
-    // PCS *fwkerhalf2 = (PCS *)malloc(sizeof(PCS) * (plan->nf2 / 2 + 1));
-
-    // cudaMemcpy(fwkerhalf1, plan->fwkerhalf1, sizeof(PCS) * (plan->nf1 / 2 + 1), cudaMemcpyDeviceToHost);
-    // cudaMemcpy(fwkerhalf2, plan->fwkerhalf2, sizeof(PCS) * (plan->nf2 / 2 + 1), cudaMemcpyDeviceToHost);
-
-    // // cufft plan setting
-    // cufftHandle fftplan;
-    // int n[] = {plan->nf2, plan->nf1};
-    // int inembed[] = {plan->nf2, plan->nf1};
-    // int onembed[] = {plan->nf2, plan->nf1};
-    
-    // if(MAX_CUFFT_ELEM/plan->nf1/plan->nf2<plan->nf3){
-    //     batchsize = MAX_CUFFT_ELEM/plan->nf1/plan->nf2;
-    //     cufftHandle fftplanl;
-    //     int remain_batch = plan->nf3%batchsize;
-    //     if(remain_batch!=0){
-    //         cufftPlanMany(&fftplanl, 2, n, inembed, 1, inembed[0] * inembed[1],
-    //                 onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, remain_batch);
-    //     }
-    //     plan->fftplan_l = fftplanl;
-    // }
-    // // check, multi cufft for different w ??? how to set
-    // // cufftCreate(&fftplan);
-    // // cufftPlan2d(&fftplan,n[0],n[1],CUFFT_TYPE);
-    // // the bach size sets as the num of w when memory is sufficent. Alternative way, set as a smaller number when memory is insufficient.
-    // // and handle this piece by piece
-    // cufftPlanMany(&fftplan, 2, n, inembed, 1, inembed[0] * inembed[1],
-    //               onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, batchsize); //There's a hard limit of roughly 2^27 elements in a plan!!!!!!!!!
-    // plan->fftplan = fftplan;
-    // plan->batchsize = batchsize;
     
     // u and v scaling *pixelsize
     rescaling_real_invoker(d_u,gridder_plan->pixelsize_x,gridder_plan->nrow);
     rescaling_real_invoker(d_v,gridder_plan->pixelsize_y,gridder_plan->nrow);
     
-    // fw malloc
-    // printf("nf1, nf2, nf3: (%d,%d,%d) %d\n",plan->nf1,plan->nf2,plan->nf3,plan->nf1*plan->nf2*plan->nf3);
 #ifdef INFO
     show_mem_usage();
     printf("nf1, nf2, nf3: (%d,%d,%d) %d\n",plan->nf1,plan->nf2,plan->nf3,plan->nf1*plan->nf2*plan->nf3);
@@ -385,7 +331,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
 	pointer_v = (visibility *)malloc(sizeof(visibility));
 	pointer_v->u = uvw;
 	pointer_v->v = uvw+nrow;
-	pointer_v->w = uvw+2*nrow; //wrong
+	pointer_v->w = uvw+2*nrow;
 	pointer_v->vis = vis;
 	pointer_v->frequency = &freq;
 	pointer_v->weight = wgt;

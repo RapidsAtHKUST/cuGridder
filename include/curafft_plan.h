@@ -14,6 +14,8 @@
 #define MAX_KERNEL_WIDTH 16
 #define NUM_SEGMENT 2000
 #define SEG_ORDER 5
+#define SEG_ORDER_2 9
+#define SEG_SIZE 32
 #undef CURAFFT_PLAN
 
 #ifdef SINGLE

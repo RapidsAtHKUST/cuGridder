@@ -136,7 +136,9 @@ int cura_prestage(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
         // bin mapping
 
         if(plan->mem_limit){
-                gridder_plan->temp_station = (int *) malloc (sizeof(int)*(((plan->nf1-1)/plan->hivesize[0] + 1)*((plan->nf2-1)/plan->hivesize[1] + 1)+1));
+                int nzp = 1;
+                if(plan->opts.gpu_gridder_method==6)nzp=(int)ceil(plan->copts.kw/2.0);
+                gridder_plan->temp_station = (int *) malloc (sizeof(int)*(((plan->nf1-1)/plan->hivesize[0] + 1)*((plan->nf2-1)/plan->hivesize[1] + 1)*nzp+1));
                 part_bin_mapping_pre(plan, gridder_plan->temp_station, plan->initial);
                 checkCudaErrors(cudaMalloc((void**)&plan->fw_temp, plan->nf1 * plan->nf2 * sizeof(CUCPX)));/// free somewhere | for dft
                 checkCudaErrors(cudaMemset(plan->fw_temp,0,plan->nf1 * plan->nf2 * sizeof(CUCPX)));
@@ -188,22 +190,6 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
         cudaEventRecord(start);
 #endif
         if(!plan->mem_limit){ier = curafft_conv(plan);
-
-        // printf("conv result printing (first w plane)...\n");
-        // ofstream myfile;
-  	// // myfile.open ("result2.txt");
-        // CPX *fw = (CPX *)malloc(sizeof(CPX) * plan->nf1 * plan->nf2 *24 );
-
-        // cudaMemcpy(fw, plan->fw +plan->nf1 * plan->nf2*24, sizeof(CUCPX) * plan->nf1 * plan->nf2 * 6, cudaMemcpyDeviceToHost);
-        // printf("%.6g\n",fw[107532].real());
-        // for (int j = 0; j < plan->nf1 * plan->nf2*6; j++)
-        // {
-        //         // if(fw[j].real()!=0){printf("%d, %.6g\n",j,fw[j].real());break;}
-        //         myfile<<fw[j].real()<<"\n";
-        // }
-        // myfile<<"\n";
-        // myfile.close();
-        // show_mem_usage();
         }
 #ifdef TIME
         cudaEventRecord(stop);
@@ -234,11 +220,7 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                 cufft_plan_setting(plan);
                 cura_cufft(plan);
         }
-        // int direction = plan->iflag;
-        // // cautious, a batch of fft, bath size is num_w when memory is sufficent.
         
-        // CUFFT_EXEC(plan->fftplan, plan->fw, plan->fw, direction); // sychronized or not
-        // cudaDeviceSynchronize();
 #ifdef TIME
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
@@ -327,24 +309,31 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
 
                 }
                 // last cube
+                int nzu = 1;
+                if(plan->opts.gpu_gridder_method==6){
+                        checkCudaErrors(cudaMemcpy(plan->hive_count+nhive[0]*nhive[1]*nhive[2]*2+2,gridder_plan->temp_station,sizeof(int)*(nhive[0]*nhive[1]*(int)ceil(plan->copts.kw/2.0)+1),cudaMemcpyHostToDevice));
+                        nzu = (int)ceil(plan->copts.kw/2.0);
+                }
+                else
                 checkCudaErrors(cudaMemcpy(plan->hive_count+nhive[0]*nhive[1]*nhive[2]*2+2,gridder_plan->temp_station,sizeof(int)*(nhive[0]*nhive[1]+1),cudaMemcpyHostToDevice));
+
                 free(gridder_plan->temp_station);
                 unsigned long long int fw_size = plan->nf1;
                 fw_size *= plan->nf2;
                 fw_size *= plan->nf3;
                 checkCudaErrors(cudaMemset(plan->fw, 0,fw_size * sizeof(CUCPX)));
-
+                
                 int nf3 = plan->nf3;
                 plan->nf3 = plan->mem_limit - i * nf3;
                 cufft_plan_setting(plan);
-
+                
                 if(i%2){
                         c_shift = nhive[0]*nhive[1]*nhive[2]+1;
-                        up_shift = nhive[0]*nhive[1]*nhive[2] - nhive[0]*nhive[1];
+                        up_shift = nhive[0]*nhive[1]*nhive[2] - nhive[0]*nhive[1]* nzu;
                 }
                 else{
                         c_shift = 0;
-                        up_shift = nhive[0]*nhive[1]*nhive[2]*2+1 - nhive[0]*nhive[1];
+                        up_shift = nhive[0]*nhive[1]*nhive[2]*2+1 - nhive[0]*nhive[1] * nzu;
                 }
                 down_shift = nhive[0]*nhive[1]*nhive[2]*2+2;
                 int remain_batch = curaff_partial_conv(plan, i*nf3, up_shift, c_shift, down_shift);
@@ -355,6 +344,12 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                 }
                 curadft_partial_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y, i*nf3);
                 checkCudaErrors(cudaFree(plan->fw));
+                if(plan->opts.gpu_kerevalmeth)checkCudaErrors(cudaFree(plan->c0));
+                checkCudaErrors(cudaFree(plan->hive_count));
+                checkCudaErrors(cudaFree(plan->d_u_out));
+                checkCudaErrors(cudaFree(plan->d_v_out));
+                checkCudaErrors(cudaFree(plan->d_w_out));
+                checkCudaErrors(cudaFree(plan->d_c_out));
                 plan->fw = plan->fw_temp;
         }
         // 4. deconvolution (correction)

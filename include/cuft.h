@@ -17,4 +17,5 @@ void pre_stage_2_invoker(PCS *i_center, PCS *o_center, PCS *gamma, PCS *h, PCS *
 int cura_prestage(CURAFFT_PLAN *plan);
 int cura_cufft(CURAFFT_PLAN *plan);
 int cufft_plan_setting(CURAFFT_PLAN *plan);
+void taylor_coefficient_setting(CURAFFT_PLAN *plan);
 #endif

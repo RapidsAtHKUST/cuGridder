@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 		epsilon = (PCS)inp; // so can read 1e6 right!
 	}
 
-	int kerevalmeth = 1;
+	int kerevalmeth = 0;
 	if (argc > 9)
 	{
 		sscanf(argv[9], "%d", &kerevalmeth);
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 	{
 		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize; //xxxxx remove
 		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize;
-		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
+		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 * 100000;
 		vis[i].real(randm11()); // nrow vis per channel, weight?
 		vis[i].imag(randm11());
 		// wgt[i] = 1;

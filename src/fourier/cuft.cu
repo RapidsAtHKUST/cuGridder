@@ -222,28 +222,7 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
     //plan->maxbatchsize = 1;
 
     plan->byte_now = 0;
-    // No extra memory is needed in nuptsdriven method (case 0, sort 0)
-    // switch (plan->opts.gpu_gridder_method)
-    // {
-    //     case 0:
-    //     {
-    //         break;
-    //     }
-    //     case 1:
-    //     {
-    //         //sorted
-    //         // checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin, sizeof(int) * M));
-    //         // checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(plan->nf1*plan->nf2+1)));
-    //     }
-    //     case 2:
-    //     {
-    //         //multi pass
-    //     }
-    //     break;
-
-    //     default:
-    //         std::cerr << "err: invalid method " << std::endl;
-    // }
+    
     if(plan->opts.gpu_gridder_method){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=8;};
     if(plan->opts.gpu_gridder_method==5){plan->hivesize[0]=1;plan->hivesize[1]=8;plan->hivesize[2]=8;};
     if(plan->opts.gpu_gridder_method==6){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=1;};
@@ -290,6 +269,23 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
     return ier;
 }
 
+void taylor_coefficient_setting(CURAFFT_PLAN *plan){
+    if(plan->opts.gpu_gridder_method==6){
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER_2*SEG_SIZE);
+		taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SEG_SIZE,SEG_ORDER_2,plan->opts.gpu_kerevalmeth);
+        checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER_2*SEG_SIZE));
+		checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER_2*SEG_SIZE,cudaMemcpyHostToDevice));
+        free(h_c0);
+    }
+    else{
+        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
+        taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,plan->opts.gpu_kerevalmeth);
+        checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
+        checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
+        free(h_c0);
+    }
+}
+
 int cunufft_setting(int N1, int N2, int N3, int M, int kerevalmeth, int method, int direction, PCS tol, PCS sigma, int type, int dim,
                     PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_c, CURAFFT_PLAN *plan)
 {
@@ -329,13 +325,7 @@ int cunufft_setting(int N1, int N2, int N3, int M, int kerevalmeth, int method, 
 
     ier = setup_conv_opts(plan->copts, tol, sigma, 1, direction, kerevalmeth); //check the arguements pirange = 1
 
-    if(kerevalmeth==1){
-        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
-        taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,kerevalmeth);
-		checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
-		checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
-        free(h_c0);
-    }
+    if(kerevalmeth==1)taylor_coefficient_setting(plan);
     
 
     if (ier != 0)

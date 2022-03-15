@@ -146,28 +146,7 @@ int main(int argc, char *argv[])
 
 	if (ier != 0)
 		printf("setup_error\n");
-	if(kerevalmeth==1){
-        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
-        // PCS *h_c1 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        // PCS *h_c2 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        // PCS *h_c3 = (PCS *)malloc(sizeof(PCS)*NUM_SEGMENT);
-        // taylor_series_approx_factors(h_c0,h_c1,h_c2,h_c3,h_plan->copts.ES_beta,NUM_SEGMENT);
-        taylor_series_approx_factors(h_c0,h_plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,kerevalmeth);
-		// printf("beta %lf\n",h_plan->copts.ES_beta);
-        // double t=0.001767436036;
-		// int idx = 457;
-        // double eval = h_c0[idx*5]+t*(h_c0[idx*5+1]+t*(h_c0[idx*5+2]+t*(h_c0[idx*5+3])));
-        // printf("eval %.12lf, %lf, %lf, %lf, %lf, %lf\n",eval,h_c0[idx*5],h_c0[idx*5+1],h_c0[idx*5+2],h_c0[idx*5+3],h_c0[idx*5+4]);
-		// printf("truth %.12lf\n", exp(h_plan->copts.ES_beta*(sqrt(1-(t+1/512.0*idx)*(t+1/512.0*idx))-1)));
-        // copy to constant mem
-        // set_ker_eval_lut(h_c0,h_c1,h_c2,h_c3);
-		checkCudaErrors(cudaMalloc((void**)&h_plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
-		checkCudaErrors(cudaMemcpy(h_plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
-        free(h_c0);
-        // free(h_c1);
-        // free(h_c2);
-        // free(h_c3);
-    }
+	if(kerevalmeth==1)taylor_coefficient_setting(h_plan);
 
 	// plan setting
 	int nf1 = (int)N1 * sigma;
@@ -186,7 +165,7 @@ int main(int argc, char *argv[])
 
 	std::cout << std::scientific << std::setprecision(3); //setprecision not define
 
-	show_mem_usage();
+	// show_mem_usage();
 	cudaEvent_t cuda_start, cuda_end;
 
 	float kernel_time, kernel_time2;
@@ -204,8 +183,6 @@ int main(int argc, char *argv[])
 	cudaEventSynchronize(cuda_end);
 	cudaEventElapsedTime(&kernel_time2, cuda_start, cuda_end);
 
-	printf("pre computing time: %.5g s\n",kernel_time2/1000.0);
-
 	cudaEventRecord(cuda_start);
 
 	// convolution
@@ -220,7 +197,9 @@ int main(int argc, char *argv[])
 	checkCudaErrors(cudaDeviceSynchronize());
 
 	// int nf3 = h_plan->num_w;
-	printf("Method %d (nupt driven) %d NU pts to #%d U pts in %.5g s\n",
+	printf("pre computing time: %.5g s\n",kernel_time2/1000.0);
+	printf("Conv time time: %.5g s\n",kernel_time/1000.0);
+	printf("[Method %d]  %d NU pts to #%d U pts in %.5g s\n",
 	   h_plan->opts.gpu_gridder_method, M, nf1 * nf2 * nf3, (kernel_time+kernel_time2) / 1000);
 
 	checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
