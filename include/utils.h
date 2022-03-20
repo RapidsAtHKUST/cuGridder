@@ -80,4 +80,6 @@ void mapping_based_gather_3d_ignore_ibo_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c
     int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int *nhive, int pirange);
 void histogram_3d_ignore_inbinorder_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_hive, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize,
     int *nhive, int pirange);
+void part_mapping_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, int *idx_arr, int *sortidx_bin, int *histo_count, int N_v, 
+                            int nf1, int nf2, int nf3, int *hivesize, int *nhive, int cube_id, int cube_z, int init_scan_value, int pirange);
 #endif

@@ -132,24 +132,39 @@ int cura_prestage(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
                 fourier_series_appro_invoker(plan->fwkerhalf3, plan->d_x, plan->copts, (N1 / 2 + 1) * (N2 / 2 + 1), plan->opts.gpu_kerevalmeth); // correction with k, may be wrong, k will be free in this function
         }
 
-        // the pirange issue!!!
-        // bin mapping
-
-        if(plan->mem_limit){
-                int nzp = 1;
-                if(plan->opts.gpu_gridder_method==6)nzp=(int)ceil(plan->copts.kw/2.0);
-                gridder_plan->temp_station = (int *) malloc (sizeof(int)*(((plan->nf1-1)/plan->hivesize[0] + 1)*((plan->nf2-1)/plan->hivesize[1] + 1)*nzp+1));
-                part_bin_mapping_pre(plan, gridder_plan->temp_station, plan->initial);
-                checkCudaErrors(cudaMalloc((void**)&plan->fw_temp, plan->nf1 * plan->nf2 * sizeof(CUCPX)));/// free somewhere | for dft
-                checkCudaErrors(cudaMemset(plan->fw_temp,0,plan->nf1 * plan->nf2 * sizeof(CUCPX)));
-        } 
-        else if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,gridder_plan->d_uvw); //currently just support 3d //uvw or u?
         // fw malloc
         unsigned long long int fw_size = plan->nf1;
         fw_size *= plan->nf2;
         fw_size *= plan->nf3;
+        
         checkCudaErrors(cudaMalloc((void**)&plan->fw, fw_size * sizeof(CUCPX)));
         checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
+        
+
+        // bin mapping
+        if(plan->mem_limit){
+                if (plan->iflag==1){
+                        int nzp = 1;
+                        if(plan->opts.gpu_gridder_method==6)nzp=(int)ceil(plan->copts.kw/2.0);
+                        gridder_plan->temp_station = (int *) malloc (sizeof(int)*(((plan->nf1-1)/plan->hivesize[0] + 1)*((plan->nf2-1)/plan->hivesize[1] + 1)*nzp+1));
+                        part_bin_mapping_pre(plan, gridder_plan->temp_station, plan->initial);
+                        checkCudaErrors(cudaMalloc((void**)&plan->fw_temp, plan->nf1 * plan->nf2 * sizeof(CUCPX)));/// free somewhere | for dft
+                        checkCudaErrors(cudaMemset(plan->fw_temp,0,plan->nf1 * plan->nf2 * sizeof(CUCPX)));
+                }
+                else{
+                        gridder_plan->temp_station = (int *) malloc (sizeof(int)*20);
+                        part_bin_mapping_pre(plan, gridder_plan->temp_station, plan->initial);
+                        checkCudaErrors(cudaMalloc((void**)&plan->fw_temp, plan->nf1 * plan->nf2 * sizeof(CUCPX)));/// free somewhere | for dft
+                        checkCudaErrors(cudaMemset(plan->fw_temp,0,plan->nf1 * plan->nf2 * sizeof(CUCPX)));
+                        
+                        CUCPX *temp = plan->fw;
+                        plan->fw = plan->fw_temp;
+                        plan->fw_temp = temp;
+
+                }
+        } 
+        else if(plan->opts.gpu_gridder_method!=0)bin_mapping(plan,gridder_plan->d_uvw); //currently just support 3d //uvw or u?
+        
         return ier;
 }
 
@@ -296,10 +311,10 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                                 down_shift = nhive[0]*nhive[1]*nhive[2]+1;
                         }
                         up_shift = nhive[0]*nhive[1]*nhive[2]*2+2;
-                        int remain_batch = curaff_partial_conv(plan, i*plan->nf3, up_shift, c_shift, down_shift);
+                        curaff_partial_conv(plan, i*plan->nf3, up_shift, c_shift, down_shift);
 
                         // cufft plan setting
-                        cufft_plan_setting(plan);
+                        int remain_batch=cufft_plan_setting(plan);
                         cura_cufft(plan);
                 
                         cufftDestroy(plan->fftplan);
@@ -325,7 +340,7 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                 
                 int nf3 = plan->nf3;
                 plan->nf3 = plan->mem_limit - i * nf3;
-                cufft_plan_setting(plan);
+                int remain_batch=cufft_plan_setting(plan);
                 
                 if(i%2){
                         c_shift = nhive[0]*nhive[1]*nhive[2]+1;
@@ -336,7 +351,7 @@ int exec_vis2dirty(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
                         up_shift = nhive[0]*nhive[1]*nhive[2]*2+1 - nhive[0]*nhive[1] * nzu;
                 }
                 down_shift = nhive[0]*nhive[1]*nhive[2]*2+2;
-                int remain_batch = curaff_partial_conv(plan, i*nf3, up_shift, c_shift, down_shift);
+                curaff_partial_conv(plan, i*nf3, up_shift, c_shift, down_shift);
                 
                 cura_cufft(plan);
                 if(remain_batch!=0){
@@ -480,7 +495,97 @@ int exec_dirty2vis(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
         free(fw);
 #endif
     // 3. idft
-    curadft_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y);
+    if(!plan->mem_limit)curadft_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y);
+    else
+    {
+        CUCPX * temp = plan->fw;
+        plan->fw = plan->fw_temp;
+        plan->fw_temp = temp;
+        
+
+        int nhive[3];
+        nhive[0] = (plan->nf1-1)/plan->hivesize[0] + 1;
+        nhive[1] = (plan->nf2-1)/plan->hivesize[1] + 1;
+        nhive[2] = (plan->nf3-1)/plan->hivesize[2] + 1;
+        unsigned long long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
+        histo_count_size *= nhive[1]*plan->hivesize[1];
+        histo_count_size *= nhive[2]*plan->hivesize[2];
+        histo_count_size ++;
+        int i;
+        for(i=0; i<(plan->mem_limit-1)/plan->nf3; i++){
+                // show_mem_usage();
+                
+                // checkCudaErrors(cudaFree(plan->fw));
+                unsigned long long int fw_size = plan->nf1;
+                fw_size *= plan->nf2;
+                fw_size *= plan->nf3;
+                // checkCudaErrors(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * fw_size));
+                checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
+                // idft
+               curadft_partial_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y, i*plan->nf3);
+
+                // fft
+                int remain_batch=cufft_plan_setting(plan);
+                cura_cufft(plan);
+                cufftDestroy(plan->fftplan);
+                if(remain_batch!=0) cufftDestroy(plan->fftplan_l); 
+
+                // nf3 , i*plan->nf3, partical, part_bin_mapping
+                checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
+                checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
+                
+                int pre_initial = plan->initial;
+                part_bin_mapping(plan, plan->d_u, plan->d_v, plan->d_w, plan->d_c, histo_count_size, i+1, plan->initial);
+                
+                checkCudaErrors(cudaMemcpy(gridder_plan->temp_station+1,plan->histo_count+nhive[0]*plan->hivesize[0]*nhive[1]*plan->hivesize[1]*(int)ceil(plan->copts.kw/2),sizeof(int),cudaMemcpyDeviceToHost));
+                gridder_plan->temp_station[1] += pre_initial;
+                gridder_plan->temp_station[0] = gridder_plan->temp_station[3];
+                gridder_plan->temp_station[3] = gridder_plan->temp_station[2];
+                checkCudaErrors(cudaMemcpy(gridder_plan->temp_station+2,plan->histo_count+ histo_count_size - nhive[0]*plan->hivesize[0]*nhive[1]*plan->hivesize[1]*(int)ceil(plan->copts.kw/2),sizeof(int),cudaMemcpyDeviceToHost));
+                gridder_plan->temp_station[2] += pre_initial;
+                
+                checkCudaErrors(cudaFree(plan->histo_count));
+                checkCudaErrors(cudaFree(plan->sortidx_bin));
+                curaff_partial_interp(plan, gridder_plan->temp_station[0], gridder_plan->temp_station[1], 0, i*plan->nf3, plan->nf3);
+
+        }
+        // zuihou
+        int nf3 = plan->nf3;
+        plan->nf3 = plan->mem_limit - i * nf3;
+        checkCudaErrors(cudaFree(plan->fw));
+        unsigned long long int fw_size = plan->nf1;
+        fw_size *= plan->nf2;
+        fw_size *= plan->nf3;
+        checkCudaErrors(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * fw_size));
+        checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
+        // idft
+        curadft_partial_invoker(plan, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y, i*nf3);
+
+        // fft
+        int remain_batch=cufft_plan_setting(plan);
+        cura_cufft(plan);
+        cufftDestroy(plan->fftplan);
+        if(remain_batch!=0){
+                cufftDestroy(plan->fftplan_l);
+        }
+        gridder_plan->temp_station[0] = gridder_plan->temp_station[3];
+        gridder_plan->temp_station[1] = plan->initial;
+        // checkCudaErrors(cudaFree(plan->histo_count));
+        // checkCudaErrors(cudaFree(plan->sortidx_bin));
+        curaff_partial_interp(plan, gridder_plan->temp_station[0], gridder_plan->temp_station[1], gridder_plan->temp_station[19], i*nf3, plan->nf3);
+        // !!!! yong temp
+        checkCudaErrors(cudaFree(plan->fw));
+        if(plan->opts.gpu_kerevalmeth)checkCudaErrors(cudaFree(plan->c0));
+        // checkCudaErrors(cudaFree(plan->hive_count));
+        checkCudaErrors(cudaFree(plan->idxnupts));
+        plan->fw = plan->fw_temp;
+        
+        // checkCudaErrors(cudaFree(plan->d_u_out));
+        // checkCudaErrors(cudaFree(plan->d_v_out));
+        // checkCudaErrors(cudaFree(plan->d_w_out));
+        // checkCudaErrors(cudaFree(plan->d_c_out));
+        free(gridder_plan->temp_station);
+    }
 
 
 #ifdef DEBUG
@@ -502,8 +607,10 @@ int exec_dirty2vis(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
         //free(fw);
 
     // 4. fft
+     if(!plan->mem_limit){
         cufft_plan_setting(plan);
         cura_cufft(plan);
+     }
 #ifdef DEBUG
         printf("fft result printing\n");
         //CPX *fw = (CPX *)malloc(sizeof(CPX)*plan->nf1*plan->nf2*plan->nf3);
@@ -529,7 +636,7 @@ int exec_dirty2vis(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
 #endif
         // * e-izw_j
     // 5. interpolation
-    curafft_interp(plan);
+     if(!plan->mem_limit)curafft_interp(plan);
 #ifdef DEBUG
         printf("interp result printing (first w plane)...\n");
         cudaMemcpy(c, plan->d_c, sizeof(CUCPX) * plan->M, cudaMemcpyDeviceToHost);
@@ -542,6 +649,6 @@ int exec_dirty2vis(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan){
         free(c);
 #endif
     // 6. final work (/wgt, *e)
-    cura_fw(plan,gridder_plan); // 
+    cura_fw(plan,gridder_plan); // /////
     return ier;
 }

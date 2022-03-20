@@ -74,7 +74,7 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
 
     // get number of w planes, scaling ratio gamma
     set_nhg_w(plan->ta.o_half_width[0], plan->ta.i_half_width[0], plan->copts, plan->nf1, plan->ta.h[0], plan->ta.gamma[0]); //temporately use nf1
-    // printf("%lf,%lf, %lf\n",plan->ta.i_half_width[0],plan->ta.o_half_width[0],plan->ta.gamma[0]);
+    // printf("%d,%lf, %lf\n",plan->nf1,plan->ta.o_half_width[0],plan->ta.gamma[0]);
     // if(plan->nf1>32)plan->nf1 = 32; // will exceed the memroy size
 #ifdef INFO
     printf("U_width %lf, U_center %lf, X_width %.10lf, X_center %.10lf, gamma %lf, nf %d, h %lf\n",
@@ -174,7 +174,7 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     size_t total_byte;
     checkCudaErrors(cudaMemGetInfo(&free_byte, &total_byte));
     // int max_w_p = free_byte / nf1 / nf2 / 16;
-    int max_w_p = (free_byte - total_byte + free_byte) / nf1 / nf2 / 16;
+    int max_w_p = (free_byte - total_byte + free_byte) / nf1 / nf2 / 20;
     // max_w_p=24;
     if(nf3>=max_w_p){
         nf3 = max_w_p / 8 * 8; // < max_w_p 

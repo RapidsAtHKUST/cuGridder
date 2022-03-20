@@ -226,6 +226,7 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
     if(plan->opts.gpu_gridder_method){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=8;};
     if(plan->opts.gpu_gridder_method==5){plan->hivesize[0]=1;plan->hivesize[1]=8;plan->hivesize[2]=8;};
     if(plan->opts.gpu_gridder_method==6){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=1;};
+    if(plan->copts.direction==0){plan->hivesize[0]=8;plan->hivesize[1]=8;plan->hivesize[2]=1;};
     // correction factor memory allocation
     if (!plan->opts.gpu_conv_only)
     {
@@ -734,6 +735,44 @@ __global__ void partial_w_term_dft(CUCPX *fw, CUCPX *fw_temp, int nf1, int nf2, 
     }
 }
 
+__global__ void partial_w_term_idft(CUCPX *fw, CUCPX *fw_temp, int nf1, int nf2, int nf3, int N1, int N2, PCS *z, int flag, int plane_id, int batchsize){
+    int idx; // there is another way to utilize shared memeory
+    for (idx = threadIdx.x + blockIdx.x * blockDim.x; idx < N1 * N2; idx += gridDim.x * blockDim.x)
+    {
+        // int plane = idx / (nf1 * nf2);
+        // int row = (idx / nf1) % nf2;
+        // int col = idx % nf1;
+        // int plane = idx / (N1 * N2);
+        int row = idx / N1;
+        int col = idx % N1;
+        unsigned long long int idx_fw = 0;
+        int w1 = 0;
+        int w2 = 0;
+
+        w1 = col >= N1 / 2 ? col - N1 / 2 : nf1 + col - N1 / 2;
+        w2 = row >= N2 / 2 ? row - N2 / 2 : nf2 + row - N2 / 2;
+        idx_fw = w1 + w2 * nf1;
+        CUCPX temp;
+        temp.x = 0;
+        temp.y = 0;
+        
+        // double z_t_2pi = 2 * PI * (z); w have been scaling to pirange
+        // currently not support for partial computing
+        int idx_z = abs(col - N1 / 2) + abs(row - N2 / 2) * (N1 / 2 + 1);
+        for(int plane=plane_id; plane<plane_id+batchsize; plane++){
+            PCS phase = flag * z[idx_z] * (plane-nf3/2);
+            temp.x = fw_temp[idx_fw].x * cos(phase) - fw_temp[idx_fw].y * sin(phase);
+            temp.y = fw_temp[idx_fw].x * sin(phase) + fw_temp[idx_fw].y * cos(phase);
+            unsigned long long int other_idx = nf2;
+            other_idx *= nf1;
+            other_idx *= (plane - plane_id);
+            other_idx += idx_fw;
+            fw[other_idx] = temp;
+        }
+    }
+}
+
+
 void curadft_partial_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize, int plane_id){
     int nf1 = plan->nf1;
     int nf2 = plan->nf2;
@@ -747,6 +786,12 @@ void curadft_partial_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize,
         dim3 block(num_threads);
         dim3 grid((N1 * N2 - 1) / num_threads + 1);
         partial_w_term_dft<<<grid, block>>>(plan->fw, plan->fw_temp, nf1, nf2, nf3, N1, N2, plan->d_x, flag, plane_id, batchsize);
+        checkCudaErrors(cudaDeviceSynchronize());
+    }
+    else {
+        dim3 block(num_threads);
+        dim3 grid((N1 * N2 - 1) / num_threads + 1);
+        partial_w_term_idft<<<grid, block>>>(plan->fw, plan->fw_temp, nf1, nf2, nf3, N1, N2, plan->d_x, flag, plane_id, batchsize);
         checkCudaErrors(cudaDeviceSynchronize());
     }
 }

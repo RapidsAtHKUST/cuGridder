@@ -238,11 +238,11 @@ int part_bin_mapping(CURAFFT_PLAN *plan, PCS *d_u_out, PCS *d_v_out, PCS *d_w_ou
   // int method = plan->opts.gpu_gridder_method;
   checkCudaErrors(cudaMalloc((void **)&plan->sortidx_bin,sizeof(int)*M));
   
-    int nhive[3];
-    nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
-    nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
-    nhive[2] = (nf3-1)/plan->hivesize[2] + 1;
-
+  int nhive[3];
+  nhive[0] = (nf1-1)/plan->hivesize[0] + 1;
+  nhive[1] = (nf2-1)/plan->hivesize[1] + 1;
+  nhive[2] = (nf3-1)/plan->hivesize[2] + 1;
+  if(plan->copts.direction==1){
     // consider cube_id = 0 as special case
 
     int *hive_count;
@@ -256,7 +256,6 @@ int part_bin_mapping(CURAFFT_PLAN *plan, PCS *d_u_out, PCS *d_v_out, PCS *d_w_ou
     if(plan->opts.gpu_gridder_method==6) checkCudaErrors(cudaMemcpy(plan->hive_count+2*hive_count_size, hive_count+hive_count_size-nhive[0]*nhive[1]*(int)ceil(plan->copts.kw/2.0)-1,sizeof(int)*(nhive[0]*nhive[1]*(int)ceil(plan->copts.kw/2.0)+1),cudaMemcpyDeviceToDevice)); //
     else checkCudaErrors(cudaMemcpy(plan->hive_count+2*hive_count_size, hive_count+hive_count_size-nhive[0]*nhive[1]-1,sizeof(int)*(nhive[0]*nhive[1]+1),cudaMemcpyDeviceToDevice)); //
 
-    checkCudaErrors(cudaDeviceSynchronize());
     histogram_3d_cube_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,plan->mem_limit,plan->hivesize,nhive,cube_id,nf3,plan->copts.pirange);
     prefix_scan(plan->histo_count,plan->histo_count,histo_count_size,0);
     int last_value;
@@ -265,7 +264,17 @@ int part_bin_mapping(CURAFFT_PLAN *plan, PCS *d_u_out, PCS *d_v_out, PCS *d_w_ou
     
     part_mapping_based_gather_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,d_u_out,d_v_out,d_w_out,d_c_out,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,plan->mem_limit,plan->hivesize,nhive,cube_id,nf3,initial,plan->copts.pirange);
     initial += last_value;
-
+  }
+  else{
+    histogram_3d_cube_invoker(plan->d_u,plan->d_v,plan->d_w,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,plan->mem_limit,plan->hivesize,nhive,cube_id,nf3,plan->copts.pirange);
+    prefix_scan(plan->histo_count,plan->histo_count,histo_count_size,0);
+    int last_value;
+    checkCudaErrors(cudaMemcpy(&last_value,plan->histo_count+histo_count_size-1,sizeof(int),cudaMemcpyDeviceToHost));
+    
+    part_mapping_3d_invoker(plan->d_u,plan->d_v,plan->d_w,plan->d_c,plan->idxnupts,plan->sortidx_bin,plan->histo_count,M,nf1,nf2,plan->mem_limit,plan->hivesize,nhive,cube_id,nf3,initial,plan->copts.pirange);
+    
+    initial += last_value;
+  }
   // checkCudaErrors(cudaFree(plan->sortidx_bin));
   // checkCudaErrors(cudaFree(plan->histo_count));
   return 0;
@@ -279,37 +288,65 @@ int part_bin_mapping_pre(CURAFFT_PLAN *plan, int *temp_station, int &initial){
   nhive[2] = (plan->nf3-1)/plan->hivesize[2] + 1;
   int M = plan->M;
   int hive_count_size;
-  if(plan->opts.gpu_gridder_method==6) hive_count_size = nhive[0] * nhive[1] * nhive[2] * 2 + nhive[0] * nhive[1] * (int)ceil(plan->copts.kw/2.0) + 3;
-  else hive_count_size = nhive[0] * nhive[1] * nhive[2] * 2 + nhive[0] * nhive[1] + 3;
-  checkCudaErrors(cudaMalloc((void **)&plan->hive_count,sizeof(int)*(hive_count_size))); // malloc once
-  checkCudaErrors(cudaMemset(plan->hive_count,0,sizeof(int)*(hive_count_size))); // malloc once
-  checkCudaErrors(cudaMalloc((void **)&plan->d_u_out, sizeof(PCS)*M));
-  checkCudaErrors(cudaMalloc((void **)&plan->d_v_out, sizeof(PCS)*M));
-  checkCudaErrors(cudaMalloc((void **)&plan->d_w_out,sizeof(PCS)*M));
-  checkCudaErrors(cudaMalloc((void **)&plan->d_c_out,sizeof(CUCPX)*M));
-
-  unsigned long long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
-  histo_count_size *= nhive[1]*plan->hivesize[1];
-  histo_count_size *= nhive[2]*plan->hivesize[2];
-  histo_count_size ++;
   
-  checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
-  checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
-  plan->initial = 0;
-  part_bin_mapping(plan, plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, histo_count_size, 0, plan->initial); // first cube
-  // calcalute the final hive plane
-  // final_hive_plane(plan, histo_count_size);
-  if(plan->opts.gpu_gridder_method==6){
-    checkCudaErrors(cudaMemset(plan->hive_count+nhive[0] * nhive[1] * nhive[2] * 2+2 , 0, sizeof(int)*(nhive[0] * nhive[1] * (int)ceil(plan->copts.kw/2.0)+1)));
+  if(plan->copts.direction==1){
+    checkCudaErrors(cudaMalloc((void **)&plan->d_u_out, sizeof(PCS)*M));
+    checkCudaErrors(cudaMalloc((void **)&plan->d_v_out, sizeof(PCS)*M));
+    checkCudaErrors(cudaMalloc((void **)&plan->d_w_out,sizeof(PCS)*M));
+    checkCudaErrors(cudaMalloc((void **)&plan->d_c_out,sizeof(CUCPX)*M));
+    if(plan->opts.gpu_gridder_method==6) hive_count_size = nhive[0] * nhive[1] * nhive[2] * 2 + nhive[0] * nhive[1] * (int)ceil(plan->copts.kw/2.0) + 3;
+    else hive_count_size = nhive[0] * nhive[1] * nhive[2] * 2 + nhive[0] * nhive[1] + 3;
+    checkCudaErrors(cudaMalloc((void **)&plan->hive_count,sizeof(int)*(hive_count_size))); // malloc once
+    checkCudaErrors(cudaMemset(plan->hive_count,0,sizeof(int)*(hive_count_size))); // malloc once
 
-    // save the first hive plane for final hive
-    checkCudaErrors(cudaMemcpy(temp_station,plan->hive_count,sizeof(int)*(nhive[0]*nhive[1]*(int)ceil(plan->copts.kw/2.0)+1),cudaMemcpyDeviceToHost));
+    unsigned long long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
+    histo_count_size *= nhive[1]*plan->hivesize[1];
+    histo_count_size *= nhive[2]*plan->hivesize[2];
+    histo_count_size ++;
+    
+    checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
+    checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
+    plan->initial = 0;
+    part_bin_mapping(plan, plan->d_u_out, plan->d_v_out, plan->d_w_out, plan->d_c_out, histo_count_size, 0, plan->initial); // first cube
+
+    // calcalute the final hive plane
+    // final_hive_plane(plan, histo_count_size);
+    if(plan->opts.gpu_gridder_method==6){
+      checkCudaErrors(cudaMemset(plan->hive_count+nhive[0] * nhive[1] * nhive[2] * 2+2 , 0, sizeof(int)*(nhive[0] * nhive[1] * (int)ceil(plan->copts.kw/2.0)+1)));
+
+      // save the first hive plane for final hive
+      checkCudaErrors(cudaMemcpy(temp_station,plan->hive_count,sizeof(int)*(nhive[0]*nhive[1]*(int)ceil(plan->copts.kw/2.0)+1),cudaMemcpyDeviceToHost));
+    }
+    else{
+      checkCudaErrors(cudaMemset(plan->hive_count+nhive[0] * nhive[1] * nhive[2] * 2+2 , 0, sizeof(int)*nhive[0] * nhive[1]+1));
+
+      // save the first hive plane for final hive
+      checkCudaErrors(cudaMemcpy(temp_station,plan->hive_count,sizeof(int)*(nhive[0]*nhive[1]+1),cudaMemcpyDeviceToHost));
+    }
   }
   else{
-    checkCudaErrors(cudaMemset(plan->hive_count+nhive[0] * nhive[1] * nhive[2] * 2+2 , 0, sizeof(int)*nhive[0] * nhive[1]+1));
-
-    // save the first hive plane for final hive
-    checkCudaErrors(cudaMemcpy(temp_station,plan->hive_count,sizeof(int)*(nhive[0]*nhive[1]+1),cudaMemcpyDeviceToHost));
+    // hive_count_size = 5;
+    // checkCudaErrors(cudaMalloc((void **)&plan->hive_count,sizeof(int)*(hive_count_size))); // malloc once
+    // checkCudaErrors(cudaMemset(plan->hive_count,0,sizeof(int)*(hive_count_size))); // malloc once
+    // plan->hive_count = (int *) malloc (sizeof(int)*hive_count_size);
+    // memset(plan->hive_count,0,sizeof(int)*hive_count_size);
+    checkCudaErrors(cudaMalloc((void **)&plan->idxnupts,sizeof(int)*(plan->M))); // malloc once
+    unsigned long long int histo_count_size = nhive[0]*plan->hivesize[0]; // padding
+    histo_count_size *= nhive[1]*plan->hivesize[1];
+    histo_count_size *= nhive[2]*plan->hivesize[2];
+    histo_count_size ++;
+    
+    checkCudaErrors(cudaMalloc((void **)&plan->histo_count,sizeof(int)*(histo_count_size)));
+    checkCudaErrors(cudaMemset(plan->histo_count,0,sizeof(int)*(histo_count_size)));
+    plan->initial = 0;
+    part_bin_mapping(plan, NULL, NULL, NULL, NULL, histo_count_size, 0, plan->initial); // first cube
+    
+    
+    // require plan->nf3 > kw/2
+    checkCudaErrors(cudaMemcpy(temp_station+19,plan->histo_count+nhive[0]*plan->hivesize[0]*nhive[1]*plan->hivesize[1]*(int)ceil(plan->copts.kw/2),sizeof(int),cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(temp_station+2,plan->histo_count+ histo_count_size - nhive[0]*plan->hivesize[0]*nhive[1]*plan->hivesize[1]*(int)ceil(plan->copts.kw/2),sizeof(int),cudaMemcpyDeviceToHost));
+    
+    temp_station[3] = 0;
   }
   
   checkCudaErrors(cudaFree(plan->histo_count));
@@ -589,6 +626,23 @@ int interp_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan)
   return 0;
 }
 
+int partial_interp_3d_invoker(int nf1, int nf2, int nf3, int M, CURAFFT_PLAN *plan, int plane_id, int cube_size, int start_pos)
+{
+
+  dim3 grid;
+  dim3 block;
+  block.x = 256;
+  grid.x = (M - 1) / block.x + 1;
+  
+  ////
+  
+  partial_interp_3d_nputsdriven<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->idxnupts+start_pos, M,
+                                        plan->copts.kw, nf1, nf2, plan->mem_limit, plan->copts.ES_c, plan->copts.ES_beta, plane_id, cube_size,
+                                        plan->copts.pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+  return 0;
+}
+
 int curafft_interp(CURAFFT_PLAN * plan)
 {
   /*
@@ -617,6 +671,54 @@ int curafft_interp(CURAFFT_PLAN * plan)
     break;
   }
 
+  return ier;
+}
+
+int interp_last_nupts_invoker(CURAFFT_PLAN *plan, int nf1, int nf2, int nf3){
+  dim3 block;
+  dim3 grid;
+  block.x = 256;
+  grid.x = (plan->M - 1) / block.x + 1;
+  interp_last_nupts<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->M,
+                                        plan->copts.kw, nf1, nf2, nf3, plan->copts.ES_c, plan->copts.ES_beta,
+                                        plan->copts.pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+  return 0;
+}
+
+int interp_beg_nupts_invoker(CURAFFT_PLAN *plan, int num_beg, int nf1, int nf2, int nf3){
+  dim3 block;
+  dim3 grid;
+  block.x = 256;
+  grid.x = (num_beg - 1) / block.x + 1;
+
+  interp_beg_nupts<<<grid, block>>>(plan->d_u, plan->d_v, plan->d_w, plan->d_c, plan->fw, plan->idxnupts, num_beg,
+                                        plan->copts.kw, nf1, nf2, nf3, plan->copts.ES_c, plan->copts.ES_beta,
+                                        plan->copts.pirange);
+  checkCudaErrors(cudaDeviceSynchronize());
+  return 0;
+}
+
+int curaff_partial_interp(CURAFFT_PLAN *plan, int start_pos, int end_pos, int num_beg, int plane_id, int cube_size){
+  // currently just support 3D
+  int ier = 0;
+  int nf1 = plan->nf1;
+  int nf2 = plan->nf2;
+  int nf3 = plan->nf3;
+  int M = end_pos - start_pos;
+  if(plan->fw==NULL){
+    printf("error, not assign mem for fw\n");
+  }
+  // first !!!
+  if(start_pos==0) {
+    // checkCudaErrors(cudaMemset(plan->d_c,0,sizeof(CUCPX)*plan->M));
+    interp_last_nupts_invoker(plan,plan->nf1,plan->nf2,plan->mem_limit);
+    // checkCudaErrors(cudaMemset(plan->d_c,0,sizeof(CUCPX)*plan->M));
+
+  }
+  ier = partial_interp_3d_invoker(nf1, nf2, nf3, M, plan, plane_id, cube_size, start_pos);
+
+  if (end_pos==plan->M&&num_beg!=0)interp_beg_nupts_invoker(plan,num_beg,plan->nf1,plan->nf2,plan->nf3);
   return ier;
 }
 

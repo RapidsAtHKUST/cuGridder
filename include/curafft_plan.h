@@ -119,7 +119,7 @@ struct CURAFFT_PLAN
 	int *histo_count;
 	int *sortidx_bin;
 	int2 *se_loc;
-
+	int *idxnupts;
 	PCS *c0;
 	// PCS *c1;
 	// PCS *c2;

@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 	{
 		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize; //xxxxx remove
 		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize;
-		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
+		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 * 20000;
 		vis[i].real(0); // nrow vis per channel, weight?
 		vis[i].imag(0);
 		// wgt[i] = 1;
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 		print_row = 10;
 	}
 	PCS *truth = (PCS*) malloc (sizeof(PCS)*nrow);
-    for(int k=0; k<nrow; k++){
+    for(int k=0; k<print_row; k++){
         CPX temp(0.0,0.0);
         for(int i=0; i<nxdirty; i++){
 		    for(int j=0; j<nydirty; j++){

@@ -23,5 +23,10 @@ __global__ void interp_2d_nputsdriven(PCS *x, PCS *y, CUCPX *c, CUCPX *fw, int M
 
 __global__ void interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int M,
 									  const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int pirange);
-
+__global__ void partial_interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int *idx_arr, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int plane_id, int cube_size, int pirange);
+__global__ void interp_beg_nupts(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int *idx_arr, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int pirange);
+__global__ void interp_last_nupts(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int pirange);
 #endif

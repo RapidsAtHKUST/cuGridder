@@ -208,3 +208,229 @@ __global__ void interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *f
 		//if((idx/blockDim.x+1)*blockDim.x<M){ __syncthreads(); }
 	}
 }
+
+__global__ void interp_last_nupts(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int pirange)
+{
+
+	int idx;
+	int xx, yy, zz, ix, iy, iz;
+	unsigned long long int indx;
+
+	PCS ker1[MAX_KERNEL_WIDTH];
+	PCS ker2[MAX_KERNEL_WIDTH];
+	PCS ker3[MAX_KERNEL_WIDTH];
+
+	PCS temp1, temp2, temp3;
+
+	// assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
+
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+
+		//value of x, shift and rescale to [0,N) and get the locations
+		temp1 = SHIFT_RESCALE(x[idx], nf1, pirange);
+		temp2 = SHIFT_RESCALE(y[idx], nf2, pirange);
+		temp3 = SHIFT_RESCALE(z[idx], nf3, pirange);
+		
+		if(temp3<nf3-ceil(ns/2.0))continue;
+		int xstart = ceil(temp1 - ns / 2.0);
+		int ystart = ceil(temp2 - ns / 2.0);
+		int zstart = nf3;
+
+		int xend = floor(temp1 + ns / 2.0);
+		int yend = floor(temp2 + ns / 2.0);
+		int zend = floor(temp3 + ns / 2.0);
+		// if(zend>=plane_id+cube_size)zend=plane_id+cube_size-1;
+
+		PCS x1 = (PCS)xstart - temp1;
+		PCS y1 = (PCS)ystart - temp2;
+		PCS z1 = (PCS)zstart - temp3;
+
+		val_kernel_vec(ker1, x1, ns, es_c, es_beta);
+		val_kernel_vec(ker2, y1, ns, es_c, es_beta);
+		val_kernel_vec(ker3, z1, ns/2+1, es_c, es_beta);
+		
+
+		for (zz = zstart; zz <= zend; zz++)
+		{
+			// if(zstart<plane_id)continue;
+			temp3 = ker3[zz - zstart];
+			for (yy = ystart; yy <= yend; yy++)
+			{
+				temp2 = ker2[yy - ystart];
+				for (xx = xstart; xx <= xend; xx++)
+				{
+					//due to the peroid, the index out of range need to be handle
+					ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
+					iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
+					iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
+					indx = nf1 * nf2;
+					indx *= iz;
+					indx += ix + iy * nf1;
+
+					temp1 = ker1[xx - xstart];
+					PCS kervalue = temp1 * temp2 * temp3;
+					c[idx].x += fw[indx].x * kervalue;
+			        c[idx].y += fw[indx].y * kervalue;
+				}
+			}
+			
+		}
+	}
+}
+
+__global__ void interp_beg_nupts(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int *idx_arr, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int pirange)
+{
+
+	int idx;
+	int xx, yy, zz, ix, iy, iz;
+	unsigned long long int indx;
+
+	PCS ker1[MAX_KERNEL_WIDTH];
+	PCS ker2[MAX_KERNEL_WIDTH];
+	PCS ker3[MAX_KERNEL_WIDTH];
+
+	PCS temp1, temp2, temp3;
+
+	// assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
+
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+
+		//value of x, shift and rescale to [0,N) and get the locations
+		temp1 = SHIFT_RESCALE(x[idx_arr[idx]], nf1, pirange);
+		temp2 = SHIFT_RESCALE(y[idx_arr[idx]], nf2, pirange);
+		temp3 = SHIFT_RESCALE(z[idx_arr[idx]], nf3, pirange);
+
+		// if(temp3<nf3-ceil(ns/2.0))continue;
+		int xstart = ceil(temp1 - ns / 2.0);
+		int ystart = ceil(temp2 - ns / 2.0);
+		int zstart = ceil(temp3 - ns / 2.0);
+
+		int xend = floor(temp1 + ns / 2.0);
+		int yend = floor(temp2 + ns / 2.0);
+		int zend = nf3-1;
+		// if(zend>=plane_id+cube_size)zend=plane_id+cube_size-1;
+
+		PCS x1 = (PCS)xstart - temp1;
+		PCS y1 = (PCS)ystart - temp2;
+		PCS z1 = (PCS)zstart - temp3;
+
+		val_kernel_vec(ker1, x1, ns, es_c, es_beta);
+		val_kernel_vec(ker2, y1, ns, es_c, es_beta);
+		val_kernel_vec(ker3, z1, ns/2+1, es_c, es_beta);
+
+		for (zz = zstart; zz <= zend; zz++)
+		{
+			// if(zstart<plane_id)continue;
+			temp3 = ker3[zz - zstart];
+			for (yy = ystart; yy <= yend; yy++)
+			{
+				temp2 = ker2[yy - ystart];
+				for (xx = xstart; xx <= xend; xx++)
+				{
+					//due to the peroid, the index out of range need to be handle
+					ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
+					iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
+					iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
+					indx = nf1 * nf2;
+					indx *= (iz);
+					indx += ix + iy * nf1;
+
+					temp1 = ker1[xx - xstart];
+					PCS kervalue = temp1 * temp2 * temp3;
+					c[idx_arr[idx]].x += fw[indx].x * kervalue;
+			        c[idx_arr[idx]].y += fw[indx].y * kervalue;
+				}
+			}
+			
+		}
+	}
+}
+
+__global__ void partial_interp_3d_nputsdriven(PCS *x, PCS *y, PCS *z, CUCPX *c, CUCPX *fw, int *idx_arr, int M,
+									const int ns, int nf1, int nf2, int nf3, PCS es_c, PCS es_beta, int plane_id, int cube_size, int pirange)
+{
+	/*
+		x, y, z - range [-pi,pi)
+		c - complex number
+		fw - result
+		M - number of nupts
+		ns - kernel width
+		nf1, nf2, nf3 - upts
+		es_ - gridding kernel related factors
+		pirange - 1
+	*/
+
+	int idx;
+	int xx, yy, zz, ix, iy, iz;
+	unsigned long long int indx;
+
+	PCS ker1[MAX_KERNEL_WIDTH];
+	PCS ker2[MAX_KERNEL_WIDTH];
+	PCS ker3[MAX_KERNEL_WIDTH];
+
+	PCS temp1, temp2, temp3;
+
+	// assert(pirange == 1); // check, the x y z should be in range [-pi,pi)
+
+	for (idx = blockDim.x * blockIdx.x + threadIdx.x; idx < M; idx += blockDim.x * gridDim.x)
+	{
+
+		//value of x, shift and rescale to [0,N) and get the locations
+		temp1 = SHIFT_RESCALE(x[idx_arr[idx]], nf1, pirange);
+		temp2 = SHIFT_RESCALE(y[idx_arr[idx]], nf2, pirange);
+		temp3 = SHIFT_RESCALE(z[idx_arr[idx]], nf3, pirange);
+
+		int xstart = ceil(temp1 - ns / 2.0);
+		int ystart = ceil(temp2 - ns / 2.0);
+		int zstart = ceil(temp3 - ns / 2.0);
+
+		int xend = floor(temp1 + ns / 2.0);
+		int yend = floor(temp2 + ns / 2.0);
+		int zend = floor(temp3 + ns / 2.0);
+		if(zend>=plane_id+cube_size)zend=plane_id+cube_size-1;
+
+		PCS x1 = (PCS)xstart - temp1;
+		PCS y1 = (PCS)ystart - temp2;
+		PCS z1 = (PCS)zstart - temp3;
+		// if(idx_arr[idx]==6)printf("%d %d %d %d %lf\n",zstart, zend, plane_id, cube_size, temp3);
+		val_kernel_vec(ker1, x1, ns, es_c, es_beta);
+		val_kernel_vec(ker2, y1, ns, es_c, es_beta);
+		val_kernel_vec(ker3, z1, ns, es_c, es_beta);
+		// if(idx_arr[idx]==6)printf("%lf \n",c[idx_arr[idx]].x);
+		for (zz = zstart; zz <= zend; zz++)
+		{
+			// if(idx_arr[idx]==2)printf("smqk\n");
+			if(zz<plane_id)continue;
+			
+			temp3 = ker3[zz - zstart];
+			for (yy = ystart; yy <= yend; yy++)
+			{
+				temp2 = ker2[yy - ystart];
+				for (xx = xstart; xx <= xend; xx++)
+				{
+					//due to the peroid, the index out of range need to be handle
+					ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
+					iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
+					iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
+					indx = nf1 * nf2;
+					// if(indx>=1610612736||indx<0)printf("error %lu %d\n", indx, idx);
+					indx *= (iz-plane_id);
+					indx += ix + iy * nf1;
+
+					// if(indx>=1610612736||indx<0)printf("error %lu %d\n", indx, idx);
+					temp1 = ker1[xx - xstart];
+					PCS kervalue = temp1 * temp2 * temp3;
+					c[idx_arr[idx]].x += fw[indx].x * kervalue;
+			        c[idx_arr[idx]].y += fw[indx].y * kervalue;
+					// if(idx_arr[idx]==6)printf("%lf \n",c[idx_arr[idx]].x);
+				}
+			}
+			
+		}
+		// if(idx_arr[idx]==6)printf("%lf ",c[idx_arr[idx]].x);
+	}
+}
