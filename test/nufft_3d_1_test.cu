@@ -52,16 +52,15 @@ int main(int argc, char *argv[])
 	sscanf(argv[2], "%d", &N2);
 	sscanf(argv[3], "%d", &N3);
 	sscanf(argv[4], "%d", &M);
-	PCS epsilon = 1e-10;
+	PCS epsilon = 1e-12;
 	if(argc>4){
 		sscanf(argv[5], "%lf", &inp);
 		epsilon = inp;
 	}
 	int kerevalmeth = 0;
-	if(argc>5)sscanf(argv[7], "%d", &kerevalmeth);
+	if(argc>5)sscanf(argv[6], "%d", &kerevalmeth);
 	int method=2;
-	if(argc>6)sscanf(argv[8], "%d", &method);
-
+	if(argc>6)sscanf(argv[7], "%d", &method);
 	//gpu_method == 0, nupts driven
 
 	//int ier;
@@ -114,10 +113,22 @@ int main(int argc, char *argv[])
 	// Timing begin
 	cudaEvent_t cuda_start, cuda_end;
 
-	float kernel_time;
+	float kernel_time, transfering_time, total_time;
 
 	cudaEventCreate(&cuda_start);
 	cudaEventCreate(&cuda_end);
+
+		// warm up CUFFT (is slow, takes around 0.2 sec... )
+	cudaEventRecord(cuda_start);
+	{
+		int nf1=1;
+		cufftHandle fftplan;
+		cufftPlan1d(&fftplan,nf1,CUFFT_TYPE,1);
+	}
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	printf("[time  ] dummy warmup call to CUFFT\t %.3g s\n", kernel_time/1000);
 
 	cudaEventRecord(cuda_start);
 
@@ -127,9 +138,16 @@ int main(int argc, char *argv[])
 	checkCudaErrors(cudaMemcpy(d_w, w, M * sizeof(PCS), cudaMemcpyHostToDevice)); //v
 	checkCudaErrors(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
-	/* ----------Step2: plan setting------------*/
-	CURAFFT_PLAN *plan;
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	transfering_time = kernel_time;
+	total_time = kernel_time;
 
+	/* ----------Step2: plan setting------------*/
+	cudaEventRecord(cuda_start);
+	CURAFFT_PLAN *plan;
 	plan = new CURAFFT_PLAN();
     memset(plan, 0, sizeof(CURAFFT_PLAN));
 
@@ -150,13 +168,7 @@ int main(int argc, char *argv[])
 
 	if(ier!=0)printf("setup_error\n");
 
-	if(kerevalmeth==1){
-        PCS *h_c0 = (PCS *)malloc(sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG);
-        taylor_series_approx_factors(h_c0,plan->copts.ES_beta,SHARED_SIZE_SEG,SEG_ORDER,kerevalmeth);
-		checkCudaErrors(cudaMalloc((void**)&plan->c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG));
-		checkCudaErrors(cudaMemcpy(plan->c0,h_c0,sizeof(PCS)*SEG_ORDER*SHARED_SIZE_SEG,cudaMemcpyHostToDevice));
-        free(h_c0);
-    }
+	if(kerevalmeth==1)taylor_coefficient_setting(plan);
 
     // plan setting
     // cuda stream malloc in setup_plan
@@ -211,9 +223,22 @@ int main(int argc, char *argv[])
 	checkCudaErrors(cudaMalloc((void**)&d_fk,sizeof(CUCPX)*N1*N2*N3));
 	plan->fk = d_fk;
 
-	// show_mem_usage();
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	printf("[Setting Up] ----- %.5g s\n",kernel_time/1000.0);
+	total_time += kernel_time;
+	
     // prestage
+	cudaEventRecord(cuda_start);
     cura_prestage(plan);
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	printf("[Pre-stage] ----- %.5g s\n",kernel_time/1000.0);
+	total_time += kernel_time;
 
 #ifdef DEBUG
 	printf("nf1, nf2, nf3 %d %d %d\n",plan->nf1,plan->nf2,plan->nf3);
@@ -262,7 +287,14 @@ int main(int argc, char *argv[])
 #endif
 
 	// calulating result
+	cudaEventRecord(cuda_start);
 	curafft_conv(plan);
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	printf("[Conv] ----- %.5g s\n",kernel_time/1000.0);
+	total_time += kernel_time;
 #ifdef DEBUG
 	printf("conv result printing...\n");
 	CPX *fw = (CPX *)malloc(sizeof(CPX)*nf1*nf2*nf3);
@@ -277,6 +309,7 @@ int main(int argc, char *argv[])
 	}
 	printf("fft(0,0) %.3g\n",temp_res);
 #endif
+	cudaEventRecord(cuda_start);
 	cufftHandle fftplan;
     int n[] = {plan->nf3, plan->nf2, plan->nf1};
     int inembed[] = {plan->nf3, plan->nf2, plan->nf1};
@@ -291,6 +324,12 @@ int main(int argc, char *argv[])
     plan->fftplan = fftplan; 
 	// fft
 	CUFFT_EXEC(plan->fftplan, plan->fw, plan->fw, direction);
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	printf("[FFT] ----- %.5g s\n",kernel_time/1000.0);
+	total_time += kernel_time;
 #ifdef DEBUG 
 	printf("fft result printing...\n");
 	cudaMemcpy(fw,plan->fw,sizeof(CUCPX)*nf1*nf2,cudaMemcpyDeviceToHost);
@@ -302,27 +341,29 @@ int main(int argc, char *argv[])
 	}
 	free(fw);
 #endif
-	// printf("correction factor printing...\n");
-	// for(int i=0; i<N1/2; i++){
-	// 	printf("%.3g ",fwkerhalf1[i]);
-	// }
-	// printf("\n");
-	// for(int i=0; i<N2/2; i++){
-	// 	printf("%.3g ",fwkerhalf2[i]);
-	// }
-	// printf("\n");
+	
 	// deconv
+	cudaEventRecord(cuda_start);
 	ier = curafft_deconv(plan);
-
-	CPX *fk = (CPX *)malloc(sizeof(CPX)*N1*N2*N3);
-	checkCudaErrors(cudaMemcpy(fk,plan->fk,sizeof(CUCPX)*N1*N2*N3, cudaMemcpyDeviceToHost));
 	cudaEventRecord(cuda_end);
-
 	cudaEventSynchronize(cuda_start);
 	cudaEventSynchronize(cuda_end);
 	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	printf("[Deconv] ----- %.5g s\n",kernel_time/1000.0);
+	total_time += kernel_time;
 
-	printf("Elapsed time: %.5g s\n",kernel_time/1000.0);
+	cudaEventRecord(cuda_start);
+	CPX *fk = (CPX *)malloc(sizeof(CPX)*N1*N2*N3);
+	checkCudaErrors(cudaMemcpy(fk,plan->fk,sizeof(CUCPX)*N1*N2*N3, cudaMemcpyDeviceToHost));
+	cudaEventRecord(cuda_end);
+	cudaEventSynchronize(cuda_start);
+	cudaEventSynchronize(cuda_end);
+	cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
+	total_time += kernel_time;
+	transfering_time += kernel_time;
+	printf("[Transfering] ----- %.5g s\n",transfering_time/1000.0);
+
+	printf("[Total time] ----- %.5g s\n",total_time/1000.0);
 	
 	// result printing
 	// printf("final result printing...\n");

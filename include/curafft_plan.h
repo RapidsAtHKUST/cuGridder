@@ -14,6 +14,8 @@
 #define MAX_KERNEL_WIDTH 16
 #define NUM_SEGMENT 2000
 #define SEG_ORDER 5
+#define SEG_ORDER_2 9
+#define SEG_SIZE 32
 #undef CURAFFT_PLAN
 
 #ifdef SINGLE
@@ -75,6 +77,10 @@ struct CURAFFT_PLAN
 	PCS *d_v;
 	PCS *d_w;
 	CUCPX *d_c;
+	PCS *d_u_out;
+	PCS *d_v_out;
+	PCS *d_w_out;
+	CUCPX *d_c_out;
 
 	// specify for type 3
 	PCS *d_x; // out
@@ -95,6 +101,8 @@ struct CURAFFT_PLAN
 	int iflag;
 	int batchsize;
 	int execute_flow; //may be useless
+	int mem_limit;
+	int initial;
 
 	//int totalnumsubprob;
 	int byte_now;	 //always be set to be 0
@@ -104,13 +112,14 @@ struct CURAFFT_PLAN
 
 	CUCPX *fw; // conv res
 	CUCPX *fk; // fft res
+	CUCPX *fw_temp;
 
 	int hivesize[3];
 	int *hive_count;
 	int *histo_count;
 	int *sortidx_bin;
 	int2 *se_loc;
-
+	int *idxnupts;
 	PCS *c0;
 	// PCS *c1;
 	// PCS *c2;

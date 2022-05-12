@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 		epsilon = (PCS)inp; // so can read 1e6 right!
 	}
 
-	int kerevalmeth = 1;
+	int kerevalmeth = 0;
 	if (argc > 9)
 	{
 		sscanf(argv[9], "%d", &kerevalmeth);
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 	// PCS deg_per_pixelx = fov / 180.0 * PI / (PCS)nxdirty;
 	// PCS deg_per_pixely = fov / 180.0 * PI / (PCS)nydirty;
 	// chanel setting
-	PCS f0 = 1e9;
+	PCS f0 = 1e8;
 	PCS *freq = (PCS *)malloc(sizeof(PCS) * nchan);
 	for (int i = 0; i < nchan; i++)
 	{
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 	{
 		u[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize; //xxxxx remove
 		v[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 / pixelsize;
-		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0;
+		w[i] = randm11() * 0.5  * SPEEDOFLIGHT / f0 * 100000;
 		vis[i].real(randm11()); // nrow vis per channel, weight?
 		vis[i].imag(randm11());
 		// wgt[i] = 1;
@@ -143,6 +143,11 @@ int main(int argc, char *argv[])
 	// ignore the tdirty
 
 	// Timing begin ++++
+	cudaEvent_t start, stop;
+    float milliseconds = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
 	//data transfer
 	checkCudaErrors(cudaMemcpy(d_u, u, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //u
 	checkCudaErrors(cudaMemcpy(d_v, v, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //v
@@ -201,7 +206,7 @@ int main(int argc, char *argv[])
 	// fk(image) malloc and set
 	checkCudaErrors(cudaMalloc((void**)&d_fk,sizeof(CUCPX)*nydirty*nxdirty));
 	plan->fk = d_fk;
-
+	// show_mem_usage();
 	gridder_plan->dirty_image = (CPX *)malloc(sizeof(CPX)*nxdirty*nydirty*nchan); //
 
 
@@ -223,7 +228,16 @@ int main(int argc, char *argv[])
 		checkCudaErrors(cudaMemcpy(gridder_plan->dirty_image+i*nxdirty*nydirty, d_fk, sizeof(CUCPX)*nydirty*nxdirty,
 			cudaMemcpyDeviceToHost));
 	}
+
+	cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("[time  ] total time:\t\t %.3g s\n", milliseconds / 1000);
+
 	printf("exection finished\n");
+
+
+
 #ifdef PRINT
 	printf("result printing...\n");
 	for(int i=0; i<nxdirty; i++){

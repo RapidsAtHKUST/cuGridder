@@ -1,4 +1,3 @@
-# from ducc0.wgridder import ms2dirty, dirty2ms
 from curig import ms2dirty, dirty2ms
 import numpy as np
 import time
@@ -76,44 +75,45 @@ def test_against_wdft(nrow, nchan, nxdirty, nydirty, fov, epsilon):
     
     print("begin")
     start = time.time()
-    dirty2 = ms2dirty(uvw,freq, ms, None, nxdirty, nydirty, xpixsize, ypixsize, 0, 0, epsilon, True, 64)
+    dirty2 = ms2dirty(uvw,freq, ms, None, nxdirty, nydirty, xpixsize, ypixsize, 0, 0, epsilon, True, 32)
     end = time.time()
     print("The elapsed time {} (sec)".format(end-start))
     print("Execution finished")
     dirty2 = np.reshape(dirty2,[nxdirty,nydirty])
     ms2 = np.zeros((nrow,1),dtype=np.complex128)
-    start = time.time()
+    # start = time.time()
     ms2 = dirty2ms(uvw,freq, dirty, None, xpixsize, ypixsize, 0, 0, epsilon, True, 64)
-    end = time.time()
-    print("The elapsed time {} (sec)".format(end-start))
-    print("Execution finished")
+    # end = time.time()
+    # print("The elapsed time {} (sec)".format(end-start))
+    # print("Execution finished")
 
     # truth_ms = explicit_degridder(uvw, freq, dirty, xpixsize, ypixsize, nrow, nchan, -1)
     # print("L2 error between explicit degridding and CURIG:",
     #           _l2error(truth_ms.real, np.squeeze(ms2.real)))
 
-    # ms2 = np.reshape(ms2,[nrow,1])
-    print("\nadjointness testing....")
-    print(np.vdot(ms, ms2).real)
-    print(np.vdot(dirty2, dirty).real)
-    # assert_allclose(np.vdot(ms, ms2).real, np.vdot(dirty2, dirty).real, rtol=1e-12)
+    ms2 = np.reshape(ms2,[nrow,1])
+    # print("\nadjointness testing....")
+    # print(np.vdot(ms, ms2).real)
+    # print(np.vdot(dirty2, dirty).real)
+    assert_allclose(np.vdot(ms, ms2).real, np.vdot(dirty2, dirty).real, rtol=1e-12)
 
-    # if nrow<1e4:
-    #     print("Vertification begin")
-    #     truth = explicit_gridder(uvw, freq, ms, nxdirty, nydirty, xpixsize, ypixsize, -1)
-    #     print("L2 error between explicit gridding and CURIG:",
-    #           _l2error(truth, dirty2))
+    if nrow<1e4:
+        print("Vertification begin")
+        truth = explicit_gridder(uvw, freq, ms, nxdirty, nydirty, xpixsize, ypixsize, -1)
+        print("L2 error between explicit gridding and CURIG:",
+              _l2error(truth, dirty2))
 
    
 
 # the first test will execute 2 times to warp up the GPU
 # for i in range(10):
-# test_against_wdft(100000, 1, 2048, 2048, 2, 1e-12)
-# test_against_wdft(1000000, 1, 2048, 2048, 2, 1e-12)
-# test_against_wdft(10000000, 1, 2048, 2048, 2, 1e-12)
-# test_against_wdft(100000000, 1, 2048, 2048, 2, 1e-12)
-
 test_against_wdft(100000, 1, 2048, 2048, 10, 1e-12)
 test_against_wdft(1000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(1000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(1000000, 1, 2048, 2048, 10, 1e-12)
 test_against_wdft(10000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(10000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(10000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(100000000, 1, 2048, 2048, 10, 1e-12)
+test_against_wdft(100000000, 1, 2048, 2048, 10, 1e-12)
 test_against_wdft(100000000, 1, 2048, 2048, 10, 1e-12)
