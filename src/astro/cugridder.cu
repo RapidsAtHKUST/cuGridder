@@ -57,8 +57,8 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
 
     //double upsampling_fac = copts.upsampfac;
     PCS temp = 1.0 - pow(l_min, 2) - pow(m_min, 2);
-    PCS n_lm = temp<=0? 0: sqrt(temp); //beyond the horizon
-    
+    PCS n_lm = temp <= 0 ? 0 : sqrt(temp); //beyond the horizon
+
     // nshift = (no_nshift||(!do_wgridding)) ? 0. : -0.5*(nm1max+nm1min);
 
     // get max min of input and output
@@ -68,8 +68,8 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
     plan->ta.i_center[0] = (i_max + i_min) / (PCS)2.0;
     plan->ta.i_half_width[0] = (i_max - i_min) / (PCS)2.0;
 
-    o_min = n_lm-1;
-    plan->ta.o_center[0] =  o_min / (PCS)2.0;
+    o_min = n_lm - 1;
+    plan->ta.o_center[0] = o_min / (PCS)2.0;
     plan->ta.o_half_width[0] = abs(o_min / (PCS)2.0);
 
     // get number of w planes, scaling ratio gamma
@@ -80,7 +80,7 @@ int setup_gridder_plan(int N1, int N2, PCS fov, int lshift, int mshift, int nrow
     printf("U_width %lf, U_center %lf, X_width %.10lf, X_center %.10lf, gamma %lf, nf %d, h %lf\n",
            plan->ta.i_half_width[0], plan->ta.i_center[0], plan->ta.o_half_width[0], plan->ta.o_center[0], plan->ta.gamma[0], plan->nf1, plan->ta.h[0]);
 #endif
-    
+
     gridder_plan->num_w = plan->nf1;
     return 0;
 }
@@ -113,16 +113,16 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     // fov and other astro related setting +++
 
     // get effective coordinates: *1/lambda
-    PCS f_over_c = pointer_v->frequency[0]/SPEEDOFLIGHT;
+    PCS f_over_c = pointer_v->frequency[0] / SPEEDOFLIGHT;
     // printf("foverc %lf\n",f_over_c);
-   
+
     int sign;
     sign = pointer_v->sign;
-    get_effective_coordinate_invoker(d_u,d_v,d_w,f_over_c,pointer_v->pirange,M,sign);
+    get_effective_coordinate_invoker(d_u, d_v, d_w, f_over_c, pointer_v->pirange, M, sign);
 
     // PCS *w = (PCS *) malloc(sizeof(PCS)*M);
     // checkCudaErrors(cudaMemcpy(w,d_w,sizeof(PCS)*M,cudaMemcpyDeviceToHost));
-   
+
     // opts and copts setting
     plan->opts.gpu_device_id = 0;
     plan->opts.upsampfac = sigma;
@@ -135,20 +135,22 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     plan->opts.gpu_gridder_method = method;
     plan->copts.pirange = 0; // uvw not in pi range
 
-    
     ier = setup_conv_opts(plan->copts, tol, sigma, plan->copts.pirange, direction, kerevalmeth); //check the arguements pirange = 1
-    
-   if(kerevalmeth==1)taylor_coefficient_setting(plan);
+
+    if (kerevalmeth == 1)
+        taylor_coefficient_setting(plan);
 
     int fftsign = (direction > 0) ? 1 : -1;
-    plan->iflag = fftsign; 
+    plan->iflag = fftsign;
 
-    if (fftsign==1) plan->type = 1;
-    else plan->type = 2; // will be used at deconv
+    if (fftsign == 1)
+        plan->type = 1;
+    else
+        plan->type = 2; // will be used at deconv
 
     if (ier != 0)
         printf("setup_error\n");
-    
+
     // gridder plan setting
     // cuda stream malloc in setup_plan
     gridder_plan->channel = channel;
@@ -162,7 +164,6 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     gridder_plan->kv.frequency = pointer_v->frequency;
     gridder_plan->kv.pirange = pointer_v->pirange;
 
-    
     setup_gridder_plan(N1, N2, fov, 0, 0, M, d_w, d_c, plan->copts, gridder_plan, plan);
 
     int nf1 = get_num_cells(N1, plan->copts);
@@ -176,8 +177,9 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     // int max_w_p = free_byte / nf1 / nf2 / 16;
     int max_w_p = (free_byte - total_byte + free_byte) / nf1 / nf2 / 20;
     // max_w_p=24;
-    if(nf3>=max_w_p){
-        nf3 = max_w_p / 8 * 8; // < max_w_p 
+    if (nf3 >= max_w_p)
+    {
+        nf3 = max_w_p / 8 * 8; // < max_w_p
         plan->mem_limit = gridder_plan->num_w;
     }
 
@@ -185,25 +187,25 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
         plan->dim = 3;
     else
         plan->dim = 2;
-    
+
     setup_plan(nf1, nf2, nf3, M, d_v, d_u, d_w, d_c, plan);
 
     plan->ms = N1;
     plan->mt = N2;
     plan->mu = 1;
     plan->execute_flow = 1;
-    //plan->fw = NULL; 
+    //plan->fw = NULL;
     batchsize = gridder_plan->num_w;
-    
+
     // u and v scaling *pixelsize
-    rescaling_real_invoker(d_u,gridder_plan->pixelsize_x,gridder_plan->nrow);
-    rescaling_real_invoker(d_v,gridder_plan->pixelsize_y,gridder_plan->nrow);
-    
+    rescaling_real_invoker(d_u, gridder_plan->pixelsize_x, gridder_plan->nrow);
+    rescaling_real_invoker(d_v, gridder_plan->pixelsize_y, gridder_plan->nrow);
+
 #ifdef INFO
     show_mem_usage();
-    printf("nf1, nf2, nf3: (%d,%d,%d) %d\n",plan->nf1,plan->nf2,plan->nf3,plan->nf1*plan->nf2*plan->nf3);
+    printf("nf1, nf2, nf3: (%d,%d,%d) %d\n", plan->nf1, plan->nf2, plan->nf3, plan->nf1 * plan->nf2 * plan->nf3);
 #endif
-    
+
     return ier;
 }
 
@@ -255,9 +257,9 @@ int gridder_destroy(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
 }
 
 int py_gridder_destroy(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
-{   
+{
     // free memory
-    int ier=0;
+    int ier = 0;
     cufftDestroy(plan->fftplan);
     checkCudaErrors(cudaFree(plan->d_x));
     checkCudaErrors(cudaFree(plan->fwkerhalf3));
@@ -272,7 +274,8 @@ int py_gridder_destroy(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
 }
 // -------------gridder warpper-----------------
 int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uvw,
-             CPX *vis, PCS *wgt,  CPX *dirty, PCS epsilon, PCS sigma, int sign){
+                  CPX *vis, PCS *wgt, CPX *dirty, PCS epsilon, PCS sigma, int sign)
+{
     /*
     generating image from ms(vis)
     Input:
@@ -291,114 +294,118 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     //checkCudaErrors(cudaSetDevice(0));
 #ifdef TIME
     cudaEvent_t start, stop;
-	float milliseconds = 0;
-	float totaltime = 0;
+    float milliseconds = 0;
+    float totaltime = 0;
     float copytime = 0;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     cudaEventRecord(start);
 #endif
     //------------transpose uvw------------
     CURAFFT_PLAN *plan;
 
-	ragridder_plan *gridder_plan;
+    ragridder_plan *gridder_plan;
 
-	plan = new CURAFFT_PLAN();
+    plan = new CURAFFT_PLAN();
     gridder_plan = new ragridder_plan();
     memset(plan, 0, sizeof(CURAFFT_PLAN));
     memset(gridder_plan, 0, sizeof(ragridder_plan));
-    
+
     CUCPX *d_vis;
-    checkCudaErrors(cudaMalloc((void**)&gridder_plan->d_uvw, 3 * nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMemcpy(gridder_plan->d_uvw,uvw,3 * nrow * sizeof(PCS),cudaMemcpyHostToDevice));
-    matrix_transpose_invoker(gridder_plan->d_uvw,3,nrow); // will use a temp arr with same size as uvw
-    checkCudaErrors(cudaMalloc((void**)&d_vis, nrow * sizeof(CUCPX)));
-    checkCudaErrors(cudaMemcpy(d_vis,  vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
-    
+    checkCudaErrors(cudaMalloc((void **)&gridder_plan->d_uvw, 3 * nrow * sizeof(PCS)));
+    checkCudaErrors(cudaMemcpy(gridder_plan->d_uvw, uvw, 3 * nrow * sizeof(PCS), cudaMemcpyHostToDevice));
+    matrix_transpose_invoker(gridder_plan->d_uvw, 3, nrow); // will use a temp arr with same size as uvw
+    checkCudaErrors(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
+    checkCudaErrors(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
+
     //------------device memory malloc------------
     PCS *d_u, *d_v, *d_w;
     d_u = gridder_plan->d_uvw;
-    d_v = gridder_plan->d_uvw+nrow;
-    d_w = gridder_plan->d_uvw+2*nrow;
+    d_v = gridder_plan->d_uvw + nrow;
+    d_w = gridder_plan->d_uvw + 2 * nrow;
 
-    PCS *f_over_c = (PCS*) malloc(sizeof(PCS));
+    PCS *f_over_c = (PCS *)malloc(sizeof(PCS));
     f_over_c[0] = freq / SPEEDOFLIGHT;
 
     /* -------------- cugridder-----------------*/
-	// plan setting
-	
-	visibility *pointer_v;
-	pointer_v = (visibility *)malloc(sizeof(visibility));
-	pointer_v->u = uvw;
-	pointer_v->v = uvw+nrow;
-	pointer_v->w = uvw+2*nrow;
-	pointer_v->vis = vis;
-	pointer_v->frequency = &freq;
-	pointer_v->weight = wgt;
-	pointer_v->pirange = 0;
+    // plan setting
+
+    visibility *pointer_v;
+    pointer_v = (visibility *)malloc(sizeof(visibility));
+    pointer_v->u = uvw;
+    pointer_v->v = uvw + nrow;
+    pointer_v->w = uvw + 2 * nrow;
+    pointer_v->vis = vis;
+    pointer_v->frequency = &freq;
+    pointer_v->weight = wgt;
+    pointer_v->pirange = 0;
     pointer_v->sign = sign;
-	int direction = 1; //vis to image
+    int direction = 1; //vis to image
     int method = 4;
     int kerevalmeth = 1;
     //---------STEP1: gridder setting---------------
-    ier = gridder_setting(nydirty,nxdirty,method,kerevalmeth,1,epsilon,direction,sigma,0,1,nrow,1,fov,pointer_v,d_u,d_v,d_w,d_vis
-		,plan,gridder_plan);
+    ier = gridder_setting(nydirty, nxdirty, method, kerevalmeth, 1, epsilon, direction, sigma, 0, 1, nrow, 1, fov, pointer_v, d_u, d_v, d_w, d_vis, plan, gridder_plan);
     //print the setting result
-	free(pointer_v);
-	if(ier == 1){
-		printf("errors in gridder setting\n");
-		return ier;
-	}
+    free(pointer_v);
+    if (ier == 1)
+    {
+        printf("errors in gridder setting\n");
+        return ier;
+    }
     CUCPX *d_dirty;
-    checkCudaErrors(cudaMalloc((void**)&d_dirty,sizeof(CUCPX)*nxdirty*nydirty));
+    checkCudaErrors(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * nxdirty * nydirty));
     plan->fk = d_dirty;
 #ifdef TIME
     cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	totaltime += milliseconds;
-	printf("[time  ] Setting time:\t\t %.3g s\n", (milliseconds)/1000);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totaltime += milliseconds;
+    printf("[time  ] Setting time:\t\t %.3g s\n", (milliseconds) / 1000);
 #endif
 
     //---------STEP2: gridder execution---------------
 #ifdef TIME
     cudaEventRecord(start);
 #endif
-    ier = gridder_execution(plan,gridder_plan);
+    ier = gridder_execution(plan, gridder_plan);
 #ifdef TIME
     cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	totaltime += milliseconds;
-	printf("[time  ] Exec time:\t\t %.3g s\n", milliseconds/1000);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totaltime += milliseconds;
+    printf("[time  ] Exec time:\t\t %.3g s\n", milliseconds / 1000);
     cudaEventRecord(start);
 #endif
-    checkCudaErrors(cudaMemcpy(dirty,plan->fk,sizeof(CUCPX)*nxdirty*nydirty,cudaMemcpyDeviceToHost));
-	if(ier == 1){
-		printf("errors in gridder execution\n");
-		return ier;
-	}
+    checkCudaErrors(cudaMemcpy(dirty, plan->fk, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyDeviceToHost));
+    if (ier == 1)
+    {
+        printf("errors in gridder execution\n");
+        return ier;
+    }
     //---------STEP3: gridder destroy-----------------
-    if(method==0)checkCudaErrors(cudaFree(gridder_plan->d_uvw));
-    ier = py_gridder_destroy(plan,gridder_plan);
-	if(ier == 1){
-		printf("errors in gridder destroy\n");
-		return ier;
-	}
+    if (method == 0)
+        checkCudaErrors(cudaFree(gridder_plan->d_uvw));
+    ier = py_gridder_destroy(plan, gridder_plan);
+    if (ier == 1)
+    {
+        printf("errors in gridder destroy\n");
+        return ier;
+    }
 #ifdef TIME
     cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	totaltime += milliseconds;
-	printf("[time  ] Result copy and detroy time:\t\t %.3g s\n", milliseconds/1000);
-	printf("[time  ] Total time:\t\t %.3g s\n", totaltime/1000);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totaltime += milliseconds;
+    printf("[time  ] Result copy and detroy time:\t\t %.3g s\n", milliseconds / 1000);
+    printf("[time  ] Total time:\t\t %.3g s\n", totaltime / 1000);
 #endif
     //checkCudaErrors(cudaDeviceReset());
     return ier;
 }
 
 int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uvw,
-             CPX *vis, PCS *wgt,  CPX *dirty, PCS epsilon, PCS sigma, int sign){
+                  CPX *vis, PCS *wgt, CPX *dirty, PCS epsilon, PCS sigma, int sign)
+{
     // +++ c dirty c/*.
     /*
     from image to ms(vis)
@@ -418,143 +425,147 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     //checkCudaErrors(cudaSetDevice(0));
 #ifdef TIME
     cudaEvent_t start, stop;
-	float milliseconds = 0;
-	float totaltime = 0;
+    float milliseconds = 0;
+    float totaltime = 0;
     float copytime = 0;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     cudaEventRecord(start);
 #endif
     //------------transpose uvw------------
 
     PCS *d_uvw;
     CUCPX *d_vis;
-    checkCudaErrors(cudaMalloc((void**)&d_uvw, 3 * nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMemcpy(d_uvw,uvw,3 * nrow * sizeof(PCS),cudaMemcpyHostToDevice));
-    matrix_transpose_invoker(d_uvw,3,nrow); // will use a temp arr with same size as uvw
-    
+    checkCudaErrors(cudaMalloc((void **)&d_uvw, 3 * nrow * sizeof(PCS)));
+    checkCudaErrors(cudaMemcpy(d_uvw, uvw, 3 * nrow * sizeof(PCS), cudaMemcpyHostToDevice));
+    matrix_transpose_invoker(d_uvw, 3, nrow); // will use a temp arr with same size as uvw
+
     CUCPX *d_dirty;
-    checkCudaErrors(cudaMalloc((void**)&d_dirty,sizeof(CUCPX)*nxdirty*nydirty));
-    checkCudaErrors(cudaMemcpy(d_dirty,dirty,sizeof(CUCPX)*nxdirty*nydirty,cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * nxdirty * nydirty));
+    checkCudaErrors(cudaMemcpy(d_dirty, dirty, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyHostToDevice));
     //------------device memory malloc------------
     PCS *d_u, *d_v, *d_w;
     d_u = d_uvw;
-    d_v = d_uvw+nrow;
-    d_w = d_uvw+2*nrow;
+    d_v = d_uvw + nrow;
+    d_w = d_uvw + 2 * nrow;
 
-    PCS *f_over_c = (PCS*) malloc(sizeof(PCS));
+    PCS *f_over_c = (PCS *)malloc(sizeof(PCS));
     f_over_c[0] = freq / SPEEDOFLIGHT;
 
     /* -------------- cugridder-----------------*/
-	// plan setting
-	CURAFFT_PLAN *plan;
+    // plan setting
+    CURAFFT_PLAN *plan;
 
-	ragridder_plan *gridder_plan;
+    ragridder_plan *gridder_plan;
 
-	plan = new CURAFFT_PLAN();
+    plan = new CURAFFT_PLAN();
     gridder_plan = new ragridder_plan();
     memset(plan, 0, sizeof(CURAFFT_PLAN));
     memset(gridder_plan, 0, sizeof(ragridder_plan));
-	
-	visibility *pointer_v;
-	pointer_v = (visibility *)malloc(sizeof(visibility));
-	pointer_v->u = uvw;
-	pointer_v->v = uvw+nrow;
-	pointer_v->w = uvw+2*nrow; //wrong
-	pointer_v->vis = vis;
-	pointer_v->frequency = &freq;
-	pointer_v->weight = wgt;
-	pointer_v->pirange = 0;
+
+    visibility *pointer_v;
+    pointer_v = (visibility *)malloc(sizeof(visibility));
+    pointer_v->u = uvw;
+    pointer_v->v = uvw + nrow;
+    pointer_v->w = uvw + 2 * nrow; //wrong
+    pointer_v->vis = vis;
+    pointer_v->frequency = &freq;
+    pointer_v->weight = wgt;
+    pointer_v->pirange = 0;
     pointer_v->sign = sign;
 
     plan->fk = d_dirty;
-	int direction = 0; 
+    int direction = 0;
     int method = 0;
     int kerevalmeth = 0;
     //---------STEP1: gridder setting---------------
-    ier = gridder_setting(nydirty,nxdirty,method,kerevalmeth,1,epsilon,direction,sigma,-1,1,nrow,1,fov,pointer_v,d_u,d_v,d_w,NULL
-		,plan,gridder_plan);
-	free(pointer_v);
-	if(ier == 1){
-		printf("errors in gridder setting\n");
-		return ier;
-	}
+    ier = gridder_setting(nydirty, nxdirty, method, kerevalmeth, 1, epsilon, direction, sigma, -1, 1, nrow, 1, fov, pointer_v, d_u, d_v, d_w, NULL, plan, gridder_plan);
+    free(pointer_v);
+    if (ier == 1)
+    {
+        printf("errors in gridder setting\n");
+        return ier;
+    }
 
-    checkCudaErrors(cudaMalloc((void**)&d_vis, nrow * sizeof(CUCPX)));
-    checkCudaErrors(cudaMemset(d_vis,0,nrow * sizeof(CUCPX)));
+    checkCudaErrors(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
+    checkCudaErrors(cudaMemset(d_vis, 0, nrow * sizeof(CUCPX)));
     plan->d_c = d_vis;
 #ifdef TIME
     cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	totaltime += milliseconds;
-	printf("[time  ] Setting time:\t\t %.3g s\n", (milliseconds)/1000);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totaltime += milliseconds;
+    printf("[time  ] Setting time:\t\t %.3g s\n", (milliseconds) / 1000);
 #endif
 
     //---------STEP2: gridder execution---------------
 #ifdef TIME
     cudaEventRecord(start);
 #endif
-    ier = gridder_execution(plan,gridder_plan);
+    ier = gridder_execution(plan, gridder_plan);
 #ifdef TIME
     cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	totaltime += milliseconds;
-	printf("[time  ] Exec time:\t\t %.3g s\n", milliseconds/1000);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totaltime += milliseconds;
+    printf("[time  ] Exec time:\t\t %.3g s\n", milliseconds / 1000);
     cudaEventRecord(start);
 #endif
-    checkCudaErrors(cudaMemcpy(vis,d_vis,sizeof(CUCPX)*nrow,cudaMemcpyDeviceToHost));
-	if(ier == 1){
-		printf("errors in gridder execution\n");
-		return ier;
-	}
+    checkCudaErrors(cudaMemcpy(vis, d_vis, sizeof(CUCPX) * nrow, cudaMemcpyDeviceToHost));
+    if (ier == 1)
+    {
+        printf("errors in gridder execution\n");
+        return ier;
+    }
     //---------STEP3: gridder destroy-----------------
     checkCudaErrors(cudaFree(d_uvw));
-    ier = py_gridder_destroy(plan,gridder_plan);
-	if(ier == 1){
-		printf("errors in gridder destroy\n");
-		return ier;
-	}
+    ier = py_gridder_destroy(plan, gridder_plan);
+    if (ier == 1)
+    {
+        printf("errors in gridder destroy\n");
+        return ier;
+    }
 #ifdef TIME
     cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	totaltime += milliseconds;
-	printf("[time  ] Result copy and detroy time:\t\t %.3g s\n", milliseconds/1000);
-	printf("[time  ] Total time:\t\t %.3g s\n", totaltime/1000);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    totaltime += milliseconds;
+    printf("[time  ] Result copy and detroy time:\t\t %.3g s\n", milliseconds / 1000);
+    printf("[time  ] Total time:\t\t %.3g s\n", totaltime / 1000);
 #endif
     //checkCudaErrors(cudaDeviceReset());
     return ier;
 }
 
-
-
 // a litter bit messy, not know how to handle as one function when wgt can be None or not in python
 int MS2DIRTY_2(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uvw,
-             CPX *vis, PCS *wgt, CPX *dirty, PCS epsilon, PCS sigma, int sign){
+               CPX *vis, PCS *wgt, CPX *dirty, PCS epsilon, PCS sigma, int sign)
+{
     int ier = 0;
-    ier = ms2dirty_exec(nrow,nxdirty,nydirty,fov,freq,uvw,vis,wgt,dirty,epsilon,sigma,sign);
+    ier = ms2dirty_exec(nrow, nxdirty, nydirty, fov, freq, uvw, vis, wgt, dirty, epsilon, sigma, sign);
     return ier;
 }
 
 int MS2DIRTY_1(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uvw,
-             CPX *vis, CPX *dirty, PCS epsilon, PCS sigma, int sign){
+               CPX *vis, CPX *dirty, PCS epsilon, PCS sigma, int sign)
+{
     int ier = 0;
-    ier = ms2dirty_exec(nrow,nxdirty,nydirty,fov,freq,uvw,vis,NULL,dirty,epsilon,sigma,sign);
+    ier = ms2dirty_exec(nrow, nxdirty, nydirty, fov, freq, uvw, vis, NULL, dirty, epsilon, sigma, sign);
     return ier;
 }
 
 int DIRTY2MS_1(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uvw,
-             CPX *vis, CPX *dirty, PCS epsilon, PCS sigma, int sign){
+               CPX *vis, CPX *dirty, PCS epsilon, PCS sigma, int sign)
+{
     int ier = 0;
-    ier = dirty2ms_exec(nrow,nxdirty,nydirty,fov,freq,uvw,vis,NULL,dirty,epsilon,sigma,sign);
+    ier = dirty2ms_exec(nrow, nxdirty, nydirty, fov, freq, uvw, vis, NULL, dirty, epsilon, sigma, sign);
     return ier;
 }
 
 int DIRTY2MS_2(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uvw,
-             CPX *vis, PCS *wgt, CPX *dirty, PCS epsilon, PCS sigma, int sign){
+               CPX *vis, PCS *wgt, CPX *dirty, PCS epsilon, PCS sigma, int sign)
+{
     int ier = 0;
-    ier = dirty2ms_exec(nrow,nxdirty,nydirty,fov,freq,uvw,vis,wgt,dirty,epsilon,sigma,sign);
+    ier = dirty2ms_exec(nrow, nxdirty, nydirty, fov, freq, uvw, vis, wgt, dirty, epsilon, sigma, sign);
     return ier;
 }

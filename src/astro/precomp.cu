@@ -221,7 +221,7 @@ __global__ void k_generation(PCS *k, int N1, int N2, PCS xpixelsize, PCS ypixels
         int row = idx / (N1 / 2 + 1);
         int col = idx % (N1 / 2 + 1);
         PCS temp = 1.0 - pow(row * xpixelsize, 2) - pow(col * ypixelsize, 2);
-        k[idx] = temp<0? sqrt(-temp) - 1:sqrt(temp) - 1; //if beyond horizon temp = -temp, not know what to do
+        k[idx] = temp < 0 ? sqrt(-temp) - 1 : sqrt(temp) - 1; //if beyond horizon temp = -temp, not know what to do
     }
 }
 
@@ -280,7 +280,7 @@ __global__ void explicit_gridder(int N1, int N2, int nrow, PCS *u, PCS *v, PCS *
 
 int explicit_gridder_invoker(ragridder_plan *gridder_plan, PCS e)
 {
-    int ier = (int) e;
+    int ier = (int)e;
     int nchan = gridder_plan->channel;
     int nrow = gridder_plan->nrow;
     int N1 = gridder_plan->width;
