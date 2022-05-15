@@ -76,10 +76,10 @@ int main(int argc, char *argv[])
 
     PCS *d_x, *d_y;
     CUCPX *d_c, *d_fw;
-    checkCudaErrors(cudaMalloc(&d_x, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_y, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_c, M * sizeof(CUCPX)));
-    //checkCudaErrors(cudaMalloc(&d_fw,8*nf1*nf2*nf1*sizeof(CUCPX)));
+    checkCudaError(cudaMalloc(&d_x, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_y, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_c, M * sizeof(CUCPX)));
+    //checkCudaError(cudaMalloc(&d_fw,8*nf1*nf2*nf1*sizeof(CUCPX)));
 
     //generating data
     int nupts_distribute = 0;
@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
 
     //printf("generated data, x[1] %2.2g, y[1] %2.2g , z[1] %2.2g, c[1] %2.2g\n",x[1] , y[1], z[1], c[1].real());
     //data transfer
-    checkCudaErrors(cudaMemcpy(d_x, x, M * sizeof(PCS), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_y, y, M * sizeof(PCS), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_x, x, M * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_y, y, M * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     CURAFFT_PLAN *h_plan = new CURAFFT_PLAN();
     memset(h_plan, 0, sizeof(CURAFFT_PLAN));
@@ -154,11 +154,11 @@ int main(int argc, char *argv[])
     // printf("the kw is %d\n", h_plan->copts.kw);
     int f_size = nf1 * nf2 * nf3;
     fw = (CPX *)malloc(sizeof(CPX) * f_size);
-    checkCudaErrors(cudaMalloc(&d_fw, f_size * sizeof(CUCPX)));
+    checkCudaError(cudaMalloc(&d_fw, f_size * sizeof(CUCPX)));
 
     h_plan->fw = d_fw;
-    //checkCudaErrors(cudaMallocHost(&fw,nf1*nf2*h_plan->num_w*sizeof(CPX))); //malloc after plan setting
-    //checkCudaErrors(cudaMalloc( &d_fw,( nf1*nf2*(h_plan->num_w)*sizeof(CUCPX) ) ) ); //check
+    //checkCudaError(cudaMallocHost(&fw,nf1*nf2*h_plan->num_w*sizeof(CPX))); //malloc after plan setting
+    //checkCudaError(cudaMalloc( &d_fw,( nf1*nf2*(h_plan->num_w)*sizeof(CUCPX) ) ) ); //check
 
     std::cout << std::scientific << std::setprecision(3); //setprecision not define
 
@@ -180,8 +180,8 @@ int main(int argc, char *argv[])
 
     cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
 
-    // checkCudaErrors(cudaDeviceSynchronize());
-    checkCudaErrors(cudaMemcpy(fw, d_fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
+    // checkCudaError(cudaDeviceSynchronize());
+    checkCudaError(cudaMemcpy(fw, d_fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
 
     //int nf3 = h_plan->num_w;
     printf("Method %d (nupt driven) %d NU pts to #%d U pts in %.3g s\n",
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
     }
     std::cout << "----------------------------------------------------------------" << std::endl;
 
-    checkCudaErrors(cudaDeviceReset());
+    checkCudaError(cudaDeviceReset());
     free(x);
     free(y);
     //free(z);

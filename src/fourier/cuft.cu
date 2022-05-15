@@ -74,7 +74,7 @@ void pre_stage_1_invoker(PCS *o_center, PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_c
         {
             // cj to cj'
             pre_stage_1<<<(M - 1) / blocksize + 1, blocksize>>>(o_center[0], o_center[1], o_center[2], d_u, d_v, d_w, d_c, M, flag);
-            checkCudaErrors(cudaDeviceSynchronize());
+            checkCudaError(cudaDeviceSynchronize());
         }
     }
 }
@@ -108,15 +108,15 @@ void pre_stage_2_invoker(PCS *i_center, PCS *o_center, PCS *gamma, PCS *h, PCS *
     int blocksize = 512;
     // uj to uj'', xj to xj'
     pre_stage_2<<<(max(M, N1) - 1) / blocksize + 1, blocksize>>>(i_center[0], o_center[0], gamma[0], h[0], d_u, d_x, M, N1);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     if (d_v != NULL)
     {
         pre_stage_2<<<(max(M, N2) - 1) / blocksize + 1, blocksize>>>(i_center[1], o_center[1], gamma[1], h[1], d_u, d_x, M, N2);
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
         if (d_w != NULL)
         {
             pre_stage_2<<<(max(M, N3) - 1) / blocksize + 1, blocksize>>>(i_center[2], o_center[2], gamma[2], h[2], d_u, d_x, M, N3);
-            checkCudaErrors(cudaDeviceSynchronize());
+            checkCudaError(cudaDeviceSynchronize());
         }
     }
 }
@@ -134,21 +134,21 @@ void pre_stage_invoker(PCS *i_center, PCS *o_center, PCS *gamma, PCS *h, PCS *d_
         {
             // cj to cj'
             pre_stage_1<<<(M - 1) / blocksize + 1, blocksize>>>(o_center[0], o_center[1], o_center[2], d_u, d_v, d_w, d_c, M, flag);
-            checkCudaErrors(cudaDeviceSynchronize());
+            checkCudaError(cudaDeviceSynchronize());
         }
     }
 
     // uj to uj'', xj to xj'
     pre_stage_2<<<(max(M, N1) - 1) / blocksize + 1, blocksize>>>(i_center[0], o_center[0], gamma[0], h[0], d_u, d_x, M, N1);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     if (d_v != NULL)
     {
         pre_stage_2<<<(max(M, N2) - 1) / blocksize + 1, blocksize>>>(i_center[1], o_center[1], gamma[1], h[1], d_u, d_x, M, N2);
-        CHECK(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
         if (d_w != NULL)
         {
             pre_stage_2<<<(max(M, N3) - 1) / blocksize + 1, blocksize>>>(i_center[2], o_center[2], gamma[2], h[2], d_u, d_x, M, N3);
-            CHECK(cudaDeviceSynchronize());
+            checkCudaError(cudaDeviceSynchronize());
         }
     }
 }
@@ -182,8 +182,8 @@ int cura_prestage(CURAFFT_PLAN *plan)
         unsigned long long int fw_size = plan->nf1;
         fw_size *= plan->nf2;
         fw_size *= plan->nf3;
-        checkCudaErrors(cudaMalloc((void **)&plan->fw, fw_size * sizeof(CUCPX)));
-        checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
+        checkCudaError(cudaMalloc((void **)&plan->fw, fw_size * sizeof(CUCPX)));
+        checkCudaError(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
     }
     return 0;
 }
@@ -199,12 +199,12 @@ int cura_cufft(CURAFFT_PLAN *plan)
     for (i = 0; i < plan->nf3 / batchsize; i++)
     {
         CUFFT_EXEC(plan->fftplan, plan->fw + elem_num_wb * i, plan->fw + elem_num_wb * i, direction); // sychronized or not
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
     }
     if (remain_batch != 0)
     {
         CUFFT_EXEC(plan->fftplan_l, plan->fw + elem_num_wb * i, plan->fw + elem_num_wb * i, direction); // sychronized or not
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
         if (!plan->mem_limit)
             cufftDestroy(plan->fftplan_l); // destroy here to save memory
     }
@@ -267,28 +267,28 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
     {
         if (plan->type != 3)
         {
-            checkCudaErrors(cudaMalloc(&plan->fwkerhalf1, (plan->nf1 / 2 + 1) * sizeof(PCS)));
+            checkCudaError(cudaMalloc(&plan->fwkerhalf1, (plan->nf1 / 2 + 1) * sizeof(PCS)));
             if (plan->dim > 1)
             {
-                checkCudaErrors(cudaMalloc(&plan->fwkerhalf2, (plan->nf2 / 2 + 1) * sizeof(PCS)));
+                checkCudaError(cudaMalloc(&plan->fwkerhalf2, (plan->nf2 / 2 + 1) * sizeof(PCS)));
             }
             if (plan->dim > 2)
             {
                 // printf("I am inn %d\n",plan->nf3);
-                checkCudaErrors(cudaMalloc(&plan->fwkerhalf3, (plan->nf3 / 2 + 1) * sizeof(PCS)));
+                checkCudaError(cudaMalloc(&plan->fwkerhalf3, (plan->nf3 / 2 + 1) * sizeof(PCS)));
             }
         }
         else
         {
             // nupt to nupt
-            checkCudaErrors(cudaMalloc(&plan->fwkerhalf1, (plan->ms) * sizeof(PCS)));
+            checkCudaError(cudaMalloc(&plan->fwkerhalf1, (plan->ms) * sizeof(PCS)));
             if (plan->dim > 1)
             {
-                checkCudaErrors(cudaMalloc(&plan->fwkerhalf2, (plan->mt) * sizeof(PCS)));
+                checkCudaError(cudaMalloc(&plan->fwkerhalf2, (plan->mt) * sizeof(PCS)));
             }
             if (plan->dim > 2)
             {
-                checkCudaErrors(cudaMalloc(&plan->fwkerhalf3, (plan->mu) * sizeof(PCS)));
+                checkCudaError(cudaMalloc(&plan->fwkerhalf3, (plan->mu) * sizeof(PCS)));
             }
         }
 
@@ -296,7 +296,7 @@ int setup_plan(int nf1, int nf2, int nf3, int M, PCS *d_u, PCS *d_v, PCS *d_w, C
         cudaStream_t* streams =(cudaStream_t*) malloc(plan->opts.gpu_nstreams*
         sizeof(cudaStream_t));
         for(int i=0; i<plan->opts.gpu_nstreams; i++)
-        checkCudaErrors(cudaStreamCreate(&streams[i]));
+        checkCudaError(cudaStreamCreate(&streams[i]));
         plan->streams = streams;
         */
     }
@@ -310,16 +310,16 @@ void taylor_coefficient_setting(CURAFFT_PLAN *plan)
     {
         PCS *h_c0 = (PCS *)malloc(sizeof(PCS) * SEG_ORDER_2 * SEG_SIZE);
         taylor_series_approx_factors(h_c0, plan->copts.ES_beta, SEG_SIZE, SEG_ORDER_2, plan->opts.gpu_kerevalmeth);
-        checkCudaErrors(cudaMalloc((void **)&plan->c0, sizeof(PCS) * SEG_ORDER_2 * SEG_SIZE));
-        checkCudaErrors(cudaMemcpy(plan->c0, h_c0, sizeof(PCS) * SEG_ORDER_2 * SEG_SIZE, cudaMemcpyHostToDevice));
+        checkCudaError(cudaMalloc((void **)&plan->c0, sizeof(PCS) * SEG_ORDER_2 * SEG_SIZE));
+        checkCudaError(cudaMemcpy(plan->c0, h_c0, sizeof(PCS) * SEG_ORDER_2 * SEG_SIZE, cudaMemcpyHostToDevice));
         free(h_c0);
     }
     else
     {
         PCS *h_c0 = (PCS *)malloc(sizeof(PCS) * SEG_ORDER * SHARED_SIZE_SEG);
         taylor_series_approx_factors(h_c0, plan->copts.ES_beta, SHARED_SIZE_SEG, SEG_ORDER, plan->opts.gpu_kerevalmeth);
-        checkCudaErrors(cudaMalloc((void **)&plan->c0, sizeof(PCS) * SEG_ORDER * SHARED_SIZE_SEG));
-        checkCudaErrors(cudaMemcpy(plan->c0, h_c0, sizeof(PCS) * SEG_ORDER * SHARED_SIZE_SEG, cudaMemcpyHostToDevice));
+        checkCudaError(cudaMalloc((void **)&plan->c0, sizeof(PCS) * SEG_ORDER * SHARED_SIZE_SEG));
+        checkCudaError(cudaMemcpy(plan->c0, h_c0, sizeof(PCS) * SEG_ORDER * SHARED_SIZE_SEG, cudaMemcpyHostToDevice));
         free(h_c0);
     }
 }
@@ -534,18 +534,18 @@ int curafft_free(CURAFFT_PLAN *plan)
     switch (plan->dim)
     {
     case 3:
-        checkCudaErrors(cudaFree(plan->fwkerhalf3));
-        checkCudaErrors(cudaFree(plan->d_w));
+        checkCudaError(cudaFree(plan->fwkerhalf3));
+        checkCudaError(cudaFree(plan->d_w));
     case 2:
-        checkCudaErrors(cudaFree(plan->fwkerhalf2));
-        checkCudaErrors(cudaFree(plan->d_v));
+        checkCudaError(cudaFree(plan->fwkerhalf2));
+        checkCudaError(cudaFree(plan->d_v));
     case 1:
-        checkCudaErrors(cudaFree(plan->fwkerhalf1));
-        checkCudaErrors(cudaFree(plan->d_u));
-        checkCudaErrors(cudaFree(plan->d_c));
-        checkCudaErrors(cudaFree(plan->fw));
+        checkCudaError(cudaFree(plan->fwkerhalf1));
+        checkCudaError(cudaFree(plan->d_u));
+        checkCudaError(cudaFree(plan->d_c));
+        checkCudaError(cudaFree(plan->fw));
         if (!plan->opts.gpu_conv_only)
-            checkCudaErrors(cudaFree(plan->fk));
+            checkCudaError(cudaFree(plan->fk));
 
     default:
         break;
@@ -589,7 +589,7 @@ void pre_stage_1_invoker(PCS i_center, PCS *d_z, CUCPX *d_fk, int N1, int N2, PC
         {
             // cj to cj'
             pre_stage_1<<<(N1 * N2 - 1) / blocksize + 1, blocksize>>>(i_center, d_z, d_fk, N1, N2, xpixelsize, ypixelsize, flag);
-            checkCudaErrors(cudaDeviceSynchronize());
+            checkCudaError(cudaDeviceSynchronize());
         }
     }
 }
@@ -711,7 +711,7 @@ void curadft_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize)
         dim3 block(num_threads);
         dim3 grid((N1 * N2 - 1) / num_threads + 1);
         w_term_dft<<<grid, block>>>(plan->fw, nf1, nf2, nf3, N1, N2, plan->d_x, flag, batchsize);
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
     }
     else
     {
@@ -722,7 +722,7 @@ void curadft_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize)
         // dim3 grid((N1*N2*nf3-1)/num_threads+1);
         // PCS adt = plan->ta.gamma[0] * plan->ta.h[0] * plan->ta.o_center[0];
         w_term_idft<<<grid, block>>>(plan->fw, nf1, nf2, nf3, N1, N2, plan->d_x, flag);
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
     }
     return;
 }
@@ -827,13 +827,13 @@ void curadft_partial_invoker(CURAFFT_PLAN *plan, PCS xpixelsize, PCS ypixelsize,
         dim3 block(num_threads);
         dim3 grid((N1 * N2 - 1) / num_threads + 1);
         partial_w_term_dft<<<grid, block>>>(plan->fw, plan->fw_temp, nf1, nf2, nf3, N1, N2, plan->d_x, flag, plane_id, batchsize);
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
     }
     else
     {
         dim3 block(num_threads);
         dim3 grid((N1 * N2 - 1) / num_threads + 1);
         partial_w_term_idft<<<grid, block>>>(plan->fw, plan->fw_temp, nf1, nf2, nf3, N1, N2, plan->d_x, flag, plane_id, batchsize);
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
     }
 }

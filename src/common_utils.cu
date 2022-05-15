@@ -14,7 +14,7 @@
 //#include <thrust/extrema.h>
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
-
+#include "utils.h"
 #include "datatype.h"
 void GPU_info()
 {
@@ -108,7 +108,7 @@ void show_mem_usage()
 
     size_t total_byte;
 
-    checkCudaErrors(cudaMemGetInfo(&free_byte, &total_byte));
+    checkCudaError(cudaMemGetInfo(&free_byte, &total_byte));
 
     double free_db = (double)free_byte;
 
@@ -134,7 +134,7 @@ void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int 
 {
     int blocksize = 256;
     counting_hive<<<(hive_count_size - 1) / blocksize + 1, blocksize>>>(hive_count, histo_count, hive_count_size, hivesize);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void counting_hive(int *hive_count, int *histo_count, unsigned long int M, int hivesize, int initial)
@@ -150,7 +150,7 @@ void counting_hive_invoker(int *hive_count, int *histo_count, unsigned long int 
 {
     int blocksize = 256;
     counting_hive<<<(hive_count_size - 1) / blocksize + 1, blocksize>>>(hive_count, histo_count, hive_count_size, hivesize, initial);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 void prefix_scan(int *d_arr, int *d_res, unsigned long long int n, int flag)

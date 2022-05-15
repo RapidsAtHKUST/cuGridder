@@ -81,11 +81,11 @@ int main(int argc, char *argv[])
 
     PCS *d_x, *d_y, *d_z;
     CUCPX *d_c;
-    checkCudaErrors(cudaMalloc(&d_x, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_y, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_z, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_c, M * sizeof(CUCPX)));
-    //checkCudaErrors(cudaMalloc(&d_fw,8*nf1*nf2*nf1*sizeof(CUCPX)));
+    checkCudaError(cudaMalloc(&d_x, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_y, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_z, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_c, M * sizeof(CUCPX)));
+    //checkCudaError(cudaMalloc(&d_fw,8*nf1*nf2*nf1*sizeof(CUCPX)));
 
     //generating data
     int nupts_distribute = 0;
@@ -121,10 +121,10 @@ int main(int argc, char *argv[])
     }
 
     //data transfer
-    checkCudaErrors(cudaMemcpy(d_x, x, M * sizeof(PCS), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_y, y, M * sizeof(PCS), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_z, z, M * sizeof(PCS), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_x, x, M * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_y, y, M * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_z, z, M * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     CURAFFT_PLAN *h_plan = new CURAFFT_PLAN();
     memset(h_plan, 0, sizeof(CURAFFT_PLAN));
@@ -153,11 +153,11 @@ int main(int argc, char *argv[])
     // printf("the kw is %d\n", h_plan->copts.kw);
     int f_size = nf1 * nf2 * nf3;
     fw = (CPX *)malloc(sizeof(CPX) * f_size);
-    // checkCudaErrors(cudaMalloc(&d_fw, f_size * sizeof(CUCPX)));
+    // checkCudaError(cudaMalloc(&d_fw, f_size * sizeof(CUCPX)));
     // show_mem_usage();
     h_plan->fw = NULL;
-    // checkCudaErrors(cudaMallocHost(&fw,nf1*nf2*h_plan->num_w*sizeof(CPX))); //malloc after plan setting
-    // checkCudaErrors(cudaMalloc( &h_plan->fw,( nf1*nf2*(nf3)*sizeof(CUCPX) ) ) ); //check
+    // checkCudaError(cudaMallocHost(&fw,nf1*nf2*h_plan->num_w*sizeof(CPX))); //malloc after plan setting
+    // checkCudaError(cudaMalloc( &h_plan->fw,( nf1*nf2*(nf3)*sizeof(CUCPX) ) ) ); //check
 
     std::cout << std::scientific << std::setprecision(3); //setprecision not define
 
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 
     cudaEventElapsedTime(&kernel_time, cuda_start, cuda_end);
 
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 
     // int nf3 = h_plan->num_w;
     printf("pre computing time: %.5g s\n", kernel_time2 / 1000.0);
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
     printf("[Method %d]  %d NU pts to #%d U pts in %.5g s\n",
            h_plan->opts.gpu_gridder_method, M, nf1 * nf2 * nf3, (kernel_time + kernel_time2) / 1000);
 
-    checkCudaErrors(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fw, h_plan->fw, sizeof(CUCPX) * f_size, cudaMemcpyDeviceToHost));
     curafft_free(h_plan);
 
     // std::cout << "[result-input]" << std::endl;
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
     // }
     // std::cout << "----------------------------------------------------------------" << std::endl;
     // myfile.close();
-    checkCudaErrors(cudaDeviceReset());
+    checkCudaError(cudaDeviceReset());
     free(x);
     free(y);
     free(z);

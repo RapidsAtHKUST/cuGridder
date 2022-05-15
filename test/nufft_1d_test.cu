@@ -66,8 +66,8 @@ int main(int argc, char *argv[])
     PCS *d_u;
     CUCPX *d_c, *d_fk;
     CUCPX *d_fw;
-    checkCudaErrors(cudaMalloc(&d_u, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_c, M * sizeof(CUCPX)));
+    checkCudaError(cudaMalloc(&d_u, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_c, M * sizeof(CUCPX)));
 
     // generating data
     for (int i = 0; i < M; i++)
@@ -103,8 +103,8 @@ int main(int argc, char *argv[])
 
     // Timing begin
     //data transfer
-    checkCudaErrors(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
-    checkCudaErrors(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
+    checkCudaError(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     /* ----------Step2: plan setting------------*/
     CURAFFT_PLAN *plan;
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
     plan->copts.direction = direction; // 1 inverse, 0 forward
 
     // // fw allocation
-    // checkCudaErrors(cudaMalloc((void**)&plan->fw,sizeof(CUCPX)*nf1*nf2*nf3));
+    // checkCudaError(cudaMalloc((void**)&plan->fw,sizeof(CUCPX)*nf1*nf2*nf3));
 
     // PCS *fwkerhalf1 = (PCS*)malloc(sizeof(PCS)*(plan->nf1/2+1));
     // onedim_fseries_kernel_seq(plan->nf1, fwkerhalf1, plan->copts); // used for correction
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 
     PCS *fwkerhalf1 = (PCS *)malloc(sizeof(PCS) * (plan->nf1 / 2 + 1));
 
-    checkCudaErrors(cudaMemcpy(fwkerhalf1, plan->fwkerhalf1, (plan->nf1 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fwkerhalf1, plan->fwkerhalf1, (plan->nf1 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
 
     printf("correction factor print...\n");
     for (int i = 0; i < nf1 / 2 + 1; i++)
@@ -189,10 +189,10 @@ int main(int argc, char *argv[])
 #endif
 
     // // copy to device
-    // checkCudaErrors(cudaMemcpy(plan->fwkerhalf1,fwkerhalf1,(plan->nf1/2+1)*
+    // checkCudaError(cudaMemcpy(plan->fwkerhalf1,fwkerhalf1,(plan->nf1/2+1)*
     // 	sizeof(PCS),cudaMemcpyHostToDevice));
 
-    // checkCudaErrors(cudaMemcpy(plan->fwkerhalf2,fwkerhalf2,(plan->nf2/2+1)*
+    // checkCudaError(cudaMemcpy(plan->fwkerhalf2,fwkerhalf2,(plan->nf2/2+1)*
     // 	sizeof(PCS),cudaMemcpyHostToDevice));
 
     // cufft plan setting
@@ -220,11 +220,11 @@ int main(int argc, char *argv[])
         return ier;
     }
     // fw (conv res set)
-    checkCudaErrors(cudaMalloc((void **)&d_fw, sizeof(CUCPX) * nf1));
-    checkCudaErrors(cudaMemset(d_fw, 0, sizeof(CUCPX) * nf1));
+    checkCudaError(cudaMalloc((void **)&d_fw, sizeof(CUCPX) * nf1));
+    checkCudaError(cudaMemset(d_fw, 0, sizeof(CUCPX) * nf1));
     plan->fw = d_fw;
     // fk malloc and set
-    checkCudaErrors(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * N1));
+    checkCudaError(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * N1));
     plan->fk = d_fk;
 
     // calulating result
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
     ier = curafft_deconv(plan);
 
     CPX *fk = (CPX *)malloc(sizeof(CPX) * N1);
-    checkCudaErrors(cudaMemcpy(fk, plan->fk, sizeof(CUCPX) * N1, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fk, plan->fk, sizeof(CUCPX) * N1, cudaMemcpyDeviceToHost));
 
     PCS fk_max = 0;
     // result printing

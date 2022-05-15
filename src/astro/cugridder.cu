@@ -121,7 +121,7 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     get_effective_coordinate_invoker(d_u, d_v, d_w, f_over_c, pointer_v->pirange, M, sign);
 
     // PCS *w = (PCS *) malloc(sizeof(PCS)*M);
-    // checkCudaErrors(cudaMemcpy(w,d_w,sizeof(PCS)*M,cudaMemcpyDeviceToHost));
+    // checkCudaError(cudaMemcpy(w,d_w,sizeof(PCS)*M,cudaMemcpyDeviceToHost));
 
     // opts and copts setting
     plan->opts.gpu_device_id = 0;
@@ -173,7 +173,7 @@ int gridder_setting(int N1, int N2, int method, int kerevalmeth, int w_term_meth
     // max number of w planes
     size_t free_byte;
     size_t total_byte;
-    checkCudaErrors(cudaMemGetInfo(&free_byte, &total_byte));
+    checkCudaError(cudaMemGetInfo(&free_byte, &total_byte));
     // int max_w_p = free_byte / nf1 / nf2 / 16;
     int max_w_p = (free_byte - total_byte + free_byte) / nf1 / nf2 / 20;
     // max_w_p=24;
@@ -240,9 +240,9 @@ int gridder_destroy(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
 {
     // free memory
     int ier = 0;
-    checkCudaErrors(cudaFree(plan->d_x));
+    checkCudaError(cudaFree(plan->d_x));
     curafft_free(plan);
-    //checkCudaErrors(cudaDeviceReset());
+    //checkCudaError(cudaDeviceReset());
     free(plan);
     free(gridder_plan->dirty_image);
     free(gridder_plan->kv.u);
@@ -261,13 +261,13 @@ int py_gridder_destroy(CURAFFT_PLAN *plan, ragridder_plan *gridder_plan)
     // free memory
     int ier = 0;
     cufftDestroy(plan->fftplan);
-    checkCudaErrors(cudaFree(plan->d_x));
-    checkCudaErrors(cudaFree(plan->fwkerhalf3));
-    checkCudaErrors(cudaFree(plan->fwkerhalf2));
-    checkCudaErrors(cudaFree(plan->fwkerhalf1));
-    checkCudaErrors(cudaFree(plan->d_c));
-    checkCudaErrors(cudaFree(plan->fw));
-    checkCudaErrors(cudaFree(plan->fk));
+    checkCudaError(cudaFree(plan->d_x));
+    checkCudaError(cudaFree(plan->fwkerhalf3));
+    checkCudaError(cudaFree(plan->fwkerhalf2));
+    checkCudaError(cudaFree(plan->fwkerhalf1));
+    checkCudaError(cudaFree(plan->d_c));
+    checkCudaError(cudaFree(plan->fw));
+    checkCudaError(cudaFree(plan->fk));
     free(plan);
     free(gridder_plan);
     return ier;
@@ -291,7 +291,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
         d_dirty - dirty image on device
     */
     int ier = 0;
-    //checkCudaErrors(cudaSetDevice(0));
+    //checkCudaError(cudaSetDevice(0));
 #ifdef TIME
     cudaEvent_t start, stop;
     float milliseconds = 0;
@@ -312,11 +312,11 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     memset(gridder_plan, 0, sizeof(ragridder_plan));
 
     CUCPX *d_vis;
-    checkCudaErrors(cudaMalloc((void **)&gridder_plan->d_uvw, 3 * nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMemcpy(gridder_plan->d_uvw, uvw, 3 * nrow * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMalloc((void **)&gridder_plan->d_uvw, 3 * nrow * sizeof(PCS)));
+    checkCudaError(cudaMemcpy(gridder_plan->d_uvw, uvw, 3 * nrow * sizeof(PCS), cudaMemcpyHostToDevice));
     matrix_transpose_invoker(gridder_plan->d_uvw, 3, nrow); // will use a temp arr with same size as uvw
-    checkCudaErrors(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
-    checkCudaErrors(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
+    checkCudaError(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     //------------device memory malloc------------
     PCS *d_u, *d_v, *d_w;
@@ -353,7 +353,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
         return ier;
     }
     CUCPX *d_dirty;
-    checkCudaErrors(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * nxdirty * nydirty));
+    checkCudaError(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * nxdirty * nydirty));
     plan->fk = d_dirty;
 #ifdef TIME
     cudaEventRecord(stop);
@@ -376,7 +376,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     printf("[time  ] Exec time:\t\t %.3g s\n", milliseconds / 1000);
     cudaEventRecord(start);
 #endif
-    checkCudaErrors(cudaMemcpy(dirty, plan->fk, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(dirty, plan->fk, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyDeviceToHost));
     if (ier == 1)
     {
         printf("errors in gridder execution\n");
@@ -384,7 +384,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     }
     //---------STEP3: gridder destroy-----------------
     if (method == 0)
-        checkCudaErrors(cudaFree(gridder_plan->d_uvw));
+        checkCudaError(cudaFree(gridder_plan->d_uvw));
     ier = py_gridder_destroy(plan, gridder_plan);
     if (ier == 1)
     {
@@ -399,7 +399,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     printf("[time  ] Result copy and detroy time:\t\t %.3g s\n", milliseconds / 1000);
     printf("[time  ] Total time:\t\t %.3g s\n", totaltime / 1000);
 #endif
-    //checkCudaErrors(cudaDeviceReset());
+    //checkCudaError(cudaDeviceReset());
     return ier;
 }
 
@@ -422,7 +422,7 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
         d_dirty - dirty image on device
     */
     int ier = 0;
-    //checkCudaErrors(cudaSetDevice(0));
+    //checkCudaError(cudaSetDevice(0));
 #ifdef TIME
     cudaEvent_t start, stop;
     float milliseconds = 0;
@@ -436,13 +436,13 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
 
     PCS *d_uvw;
     CUCPX *d_vis;
-    checkCudaErrors(cudaMalloc((void **)&d_uvw, 3 * nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMemcpy(d_uvw, uvw, 3 * nrow * sizeof(PCS), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMalloc((void **)&d_uvw, 3 * nrow * sizeof(PCS)));
+    checkCudaError(cudaMemcpy(d_uvw, uvw, 3 * nrow * sizeof(PCS), cudaMemcpyHostToDevice));
     matrix_transpose_invoker(d_uvw, 3, nrow); // will use a temp arr with same size as uvw
 
     CUCPX *d_dirty;
-    checkCudaErrors(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * nxdirty * nydirty));
-    checkCudaErrors(cudaMemcpy(d_dirty, dirty, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyHostToDevice));
+    checkCudaError(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * nxdirty * nydirty));
+    checkCudaError(cudaMemcpy(d_dirty, dirty, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyHostToDevice));
     //------------device memory malloc------------
     PCS *d_u, *d_v, *d_w;
     d_u = d_uvw;
@@ -487,8 +487,8 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
         return ier;
     }
 
-    checkCudaErrors(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
-    checkCudaErrors(cudaMemset(d_vis, 0, nrow * sizeof(CUCPX)));
+    checkCudaError(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
+    checkCudaError(cudaMemset(d_vis, 0, nrow * sizeof(CUCPX)));
     plan->d_c = d_vis;
 #ifdef TIME
     cudaEventRecord(stop);
@@ -511,14 +511,14 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     printf("[time  ] Exec time:\t\t %.3g s\n", milliseconds / 1000);
     cudaEventRecord(start);
 #endif
-    checkCudaErrors(cudaMemcpy(vis, d_vis, sizeof(CUCPX) * nrow, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(vis, d_vis, sizeof(CUCPX) * nrow, cudaMemcpyDeviceToHost));
     if (ier == 1)
     {
         printf("errors in gridder execution\n");
         return ier;
     }
     //---------STEP3: gridder destroy-----------------
-    checkCudaErrors(cudaFree(d_uvw));
+    checkCudaError(cudaFree(d_uvw));
     ier = py_gridder_destroy(plan, gridder_plan);
     if (ier == 1)
     {
@@ -533,7 +533,7 @@ int dirty2ms_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     printf("[time  ] Result copy and detroy time:\t\t %.3g s\n", milliseconds / 1000);
     printf("[time  ] Total time:\t\t %.3g s\n", totaltime / 1000);
 #endif
-    //checkCudaErrors(cudaDeviceReset());
+    //checkCudaError(cudaDeviceReset());
     return ier;
 }
 

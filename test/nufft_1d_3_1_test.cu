@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
     PCS *d_u;
     CUCPX *d_c, *d_fk;
     CUCPX *d_fw;
-    checkCudaErrors(cudaMalloc(&d_u, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_c, M * sizeof(CUCPX)));
+    checkCudaError(cudaMalloc(&d_u, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_c, M * sizeof(CUCPX)));
     /// pixel size
     // generating data
     for (int i = 0; i < M; i++)
@@ -73,8 +73,8 @@ int main(int argc, char *argv[])
     printf("\n");
 
     //data transfer
-    checkCudaErrors(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
-    checkCudaErrors(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
+    checkCudaError(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     /* ----------Step2: plan setting------------*/
     CURAFFT_PLAN *plan;
@@ -83,8 +83,8 @@ int main(int argc, char *argv[])
     memset(plan, 0, sizeof(CURAFFT_PLAN));
 
     PCS *d_k;
-    checkCudaErrors(cudaMalloc((void **)&d_k, sizeof(PCS) * N));
-    checkCudaErrors(cudaMemcpy(d_k, k, sizeof(PCS) * N, cudaMemcpyHostToDevice));
+    checkCudaError(cudaMalloc((void **)&d_k, sizeof(PCS) * N));
+    checkCudaError(cudaMemcpy(d_k, k, sizeof(PCS) * N, cudaMemcpyHostToDevice));
     plan->d_x = d_k;
     int direction = 1; //inverse
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 
     // // fourier_series_appro_invoker(d_fwkerhalf,plan->copts,nf1/2+1);
     PCS *fwkerhalf = (PCS *)malloc(sizeof(PCS) * (N));
-    checkCudaErrors(cudaMemcpy(fwkerhalf, plan->fwkerhalf1, sizeof(PCS) * (N), cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fwkerhalf, plan->fwkerhalf1, sizeof(PCS) * (N), cudaMemcpyDeviceToHost));
 
     //fourier_series(fwkerhalf,k,plan->copts,N,nf1/2+1);
 #ifdef DEBUG
@@ -107,11 +107,11 @@ int main(int argc, char *argv[])
     printf("\n");
 #endif
     // fw (conv res set)
-    checkCudaErrors(cudaMalloc((void **)&d_fw, sizeof(CUCPX) * plan->nf1));
-    checkCudaErrors(cudaMemset(d_fw, 0, sizeof(CUCPX) * plan->nf1));
+    checkCudaError(cudaMalloc((void **)&d_fw, sizeof(CUCPX) * plan->nf1));
+    checkCudaError(cudaMemset(d_fw, 0, sizeof(CUCPX) * plan->nf1));
     plan->fw = d_fw;
     // fk malloc and set
-    checkCudaErrors(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * N));
+    checkCudaError(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * N));
     plan->fk = d_fk;
 
     // calulating result
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 
 #endif
     PCS *kp = (PCS *)malloc(sizeof(PCS) * N);
-    checkCudaErrors(cudaMemcpy(kp, plan->d_x, sizeof(PCS) * N, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(kp, plan->d_x, sizeof(PCS) * N, cudaMemcpyDeviceToHost));
 
     CPX *fk = (CPX *)malloc(sizeof(CPX) * N);
     memset(fk, 0, sizeof(CPX) * N);

@@ -77,10 +77,10 @@ int main(int argc, char *argv[])
     PCS *d_u, *d_v, *d_w;
     CUCPX *d_c, *d_fk;
     // CUCPX *d_fw;
-    checkCudaErrors(cudaMalloc(&d_u, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_v, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_w, M * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc(&d_c, M * sizeof(CUCPX)));
+    checkCudaError(cudaMalloc(&d_u, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_v, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_w, M * sizeof(PCS)));
+    checkCudaError(cudaMalloc(&d_c, M * sizeof(CUCPX)));
 
     // generating data
     for (int i = 0; i < M; i++)
@@ -139,10 +139,10 @@ int main(int argc, char *argv[])
     cudaEventRecord(cuda_start);
 
     //data transfer
-    checkCudaErrors(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
-    checkCudaErrors(cudaMemcpy(d_v, v, M * sizeof(PCS), cudaMemcpyHostToDevice)); //v
-    checkCudaErrors(cudaMemcpy(d_w, w, M * sizeof(PCS), cudaMemcpyHostToDevice)); //v
-    checkCudaErrors(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_u, u, M * sizeof(PCS), cudaMemcpyHostToDevice)); //u
+    checkCudaError(cudaMemcpy(d_v, v, M * sizeof(PCS), cudaMemcpyHostToDevice)); //v
+    checkCudaError(cudaMemcpy(d_w, w, M * sizeof(PCS), cudaMemcpyHostToDevice)); //v
+    checkCudaError(cudaMemcpy(d_c, c, M * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     cudaEventRecord(cuda_end);
     cudaEventSynchronize(cuda_start);
@@ -204,10 +204,10 @@ int main(int argc, char *argv[])
     plan->copts.direction = direction; // 1 inverse, 0 forward
 
     // // copy to device
-    // checkCudaErrors(cudaMemcpy(plan->fwkerhalf1,fwkerhalf1,(plan->nf1/2+1)*
+    // checkCudaError(cudaMemcpy(plan->fwkerhalf1,fwkerhalf1,(plan->nf1/2+1)*
     // 	sizeof(PCS),cudaMemcpyHostToDevice));
 
-    // checkCudaErrors(cudaMemcpy(plan->fwkerhalf2,fwkerhalf2,(plan->nf2/2+1)*
+    // checkCudaError(cudaMemcpy(plan->fwkerhalf2,fwkerhalf2,(plan->nf2/2+1)*
     // 	sizeof(PCS),cudaMemcpyHostToDevice));
 
     // cufft plan setting
@@ -222,11 +222,11 @@ int main(int argc, char *argv[])
         return ier;
     }
     // fw (conv res set)
-    // checkCudaErrors(cudaMalloc((void**)&d_fw,sizeof(CUCPX)*nf1*nf2));
-    // checkCudaErrors(cudaMemset(d_fw, 0, sizeof(CUCPX)*nf1*nf2));
+    // checkCudaError(cudaMalloc((void**)&d_fw,sizeof(CUCPX)*nf1*nf2));
+    // checkCudaError(cudaMemset(d_fw, 0, sizeof(CUCPX)*nf1*nf2));
     // plan->fw = d_fw;
     // fk malloc and set
-    checkCudaErrors(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * N1 * N2 * N3));
+    checkCudaError(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * N1 * N2 * N3));
     plan->fk = d_fk;
 
     cudaEventRecord(cuda_end);
@@ -262,11 +262,11 @@ int main(int argc, char *argv[])
     PCS *fwkerhalf2 = (PCS *)malloc(sizeof(PCS) * (plan->nf2 / 2 + 1));
     PCS *fwkerhalf3 = (PCS *)malloc(sizeof(PCS) * (plan->nf3 / 2 + 1));
 
-    checkCudaErrors(cudaMemcpy(fwkerhalf1, plan->fwkerhalf1, (plan->nf1 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fwkerhalf1, plan->fwkerhalf1, (plan->nf1 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
 
-    checkCudaErrors(cudaMemcpy(fwkerhalf2, plan->fwkerhalf2, (plan->nf2 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fwkerhalf2, plan->fwkerhalf2, (plan->nf2 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
 
-    checkCudaErrors(cudaMemcpy(fwkerhalf3, plan->fwkerhalf3, (plan->nf3 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fwkerhalf3, plan->fwkerhalf3, (plan->nf3 / 2 + 1) * sizeof(PCS), cudaMemcpyDeviceToHost));
 
     printf("correction factor print...\n");
     for (int i = 0; i < nf1 / 2 + 1; i++)
@@ -364,7 +364,7 @@ int main(int argc, char *argv[])
 
     cudaEventRecord(cuda_start);
     CPX *fk = (CPX *)malloc(sizeof(CPX) * N1 * N2 * N3);
-    checkCudaErrors(cudaMemcpy(fk, plan->fk, sizeof(CUCPX) * N1 * N2 * N3, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(fk, plan->fk, sizeof(CUCPX) * N1 * N2 * N3, cudaMemcpyDeviceToHost));
     cudaEventRecord(cuda_end);
     cudaEventSynchronize(cuda_start);
     cudaEventSynchronize(cuda_end);

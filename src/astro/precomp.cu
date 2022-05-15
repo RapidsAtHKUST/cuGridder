@@ -42,7 +42,7 @@ void get_effective_coordinate_invoker(PCS *d_u, PCS *d_v, PCS *d_w, PCS f_over_c
     int blocksize = 512;
     // printf("nrow %d, foc %lf",nrow,f_over_c);
     get_effective_coordinate<<<(nrow - 1) / blocksize + 1, blocksize>>>(d_u, d_v, d_w, f_over_c, pirange, nrow);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void get_effective_coordinate(PCS *u, PCS *v, PCS *w, PCS f_over_c, int pirange, int nrow, int sign)
@@ -76,7 +76,7 @@ void get_effective_coordinate_invoker(PCS *d_u, PCS *d_v, PCS *d_w, PCS f_over_c
     int blocksize = 512;
     // printf("nrow %d, foc %lf",nrow,f_over_c);
     get_effective_coordinate<<<(nrow - 1) / blocksize + 1, blocksize>>>(d_u, d_v, d_w, f_over_c, pirange, nrow, sign);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 __global__ void gridder_rescaling_real(PCS *x, PCS scale_ratio, int N)
 {
@@ -125,10 +125,10 @@ void pre_setting(PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_vis, CURAFFT_PLAN *plan,
     if (gridder_plan->w_term_method)
     {
         // improved_ws
-        checkCudaErrors(cudaFree(plan->fwkerhalf3)); //if cur channel = 0
-        checkCudaErrors(cudaMalloc((void **)&plan->fwkerhalf3, sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1)));
+        checkCudaError(cudaFree(plan->fwkerhalf3)); //if cur channel = 0
+        checkCudaError(cudaMalloc((void **)&plan->fwkerhalf3, sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1)));
         PCS *d_k;
-        checkCudaErrors(cudaMalloc((void **)&d_k, sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1)));
+        checkCudaError(cudaMalloc((void **)&d_k, sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1)));
         w_term_k_generation(d_k, plan->ms, plan->mt, gridder_plan->pixelsize_x, gridder_plan->pixelsize_y); //some issues
 #ifdef DEBUG
         printf("k printing...\n");
@@ -146,7 +146,7 @@ void pre_setting(PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_vis, CURAFFT_PLAN *plan,
         }
 #endif
         fourier_series_appro_invoker(plan->fwkerhalf3, d_k, plan->copts, (N1 / 2 + 1) * (N2 / 2 + 1), num_w / 2 + 1); // correction with k, cautious
-        checkCudaErrors(cudaFree(d_k));
+        checkCudaError(cudaFree(d_k));
         //
 #ifdef DEBUG
         PCS *fwkerhalf3 = (PCS *)malloc(sizeof(PCS) * (N1 / 2 + 1) * (N2 / 2 + 1));
@@ -162,15 +162,15 @@ void pre_setting(PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_vis, CURAFFT_PLAN *plan,
 #endif
         if (plan->fw != NULL)
         {
-            checkCudaErrors(cudaFree(plan->fw));
+            checkCudaError(cudaFree(plan->fw));
             plan->fw = NULL;
         }
 
         unsigned long long int fw_size = plan->nf1;
         fw_size *= plan->nf2;
         fw_size *= plan->nf3;
-        checkCudaErrors(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * fw_size));
-        checkCudaErrors(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
+        checkCudaError(cudaMalloc((void **)&plan->fw, sizeof(CUCPX) * fw_size));
+        checkCudaError(cudaMemset(plan->fw, 0, fw_size * sizeof(CUCPX)));
     }
 
     int n[] = {plan->nf2, plan->nf1};
@@ -180,27 +180,27 @@ void pre_setting(PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_vis, CURAFFT_PLAN *plan,
                   onembed, 1, onembed[0] * onembed[1], CUFFT_TYPE, plan->nf3);
     // ---------get effective coordinates---------
     get_effective_coordinate<<<(N - 1) / blocksize + 1, blocksize>>>(d_u, d_v, d_w, f_over_c, pirange, nrow);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 
     // get_max_min(gridder_plan->w_max,gridder_plan->w_min,plan->d_w,gridder_plan->nrow);
     // printf("scaling method: w_max %lf, w_min %lf\n",gridder_plan->w_max, gridder_plan->w_min);
 
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     gridder_plan->kv.pirange = 1;
     plan->copts.pirange = 1;
     // ----------------rescaling-----------------
     PCS scaling_ratio = xpixelsize;
     gridder_rescaling_real<<<(N - 1) / blocksize + 1, blocksize>>>(d_u, scaling_ratio, nrow);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     scaling_ratio = ypixelsize;
     gridder_rescaling_real<<<(N - 1) / blocksize + 1, blocksize>>>(d_v, scaling_ratio, nrow);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     gridder_rescaling_real<<<(N - 1) / blocksize + 1, blocksize>>>(d_w, previous_sr / gridder_plan->w_s_r, nrow); // scaling w to [-pi, pi)
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 
 #ifdef DEBUG
     PCS *w = (PCS *)malloc(sizeof(PCS) * nrow);
-    checkCudaErrors(cudaMemcpy(w, d_w, sizeof(PCS) * nrow, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(w, d_w, sizeof(PCS) * nrow, cudaMemcpyDeviceToHost));
     printf("effective coordinate printing...\n");
     for (int i = 0; i < nrow; i++)
     {
@@ -209,7 +209,7 @@ void pre_setting(PCS *d_u, PCS *d_v, PCS *d_w, CUCPX *d_vis, CURAFFT_PLAN *plan,
 #endif
     // ------------vis * flag * weight--------+++++
     // memory transfer (vis belong to this channel and weight)
-    checkCudaErrors(cudaMemcpy(d_vis, gridder_plan->kv.vis + nrow * gridder_plan->cur_channel, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice)); //
+    checkCudaError(cudaMemcpy(d_vis, gridder_plan->kv.vis + nrow * gridder_plan->cur_channel, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice)); //
 }
 
 __global__ void k_generation(PCS *k, int N1, int N2, PCS xpixelsize, PCS ypixelsize)
@@ -239,7 +239,7 @@ int w_term_k_generation(PCS *k, int N1, int N2, PCS xpixelsize, PCS ypixelsize)
     int N = (N1 / 2 + 1) * (N2 / 2 + 1);
     int blocksize = 512;
     k_generation<<<(N - 1) / blocksize + 1, blocksize>>>(k, N1, N2, xpixelsize, ypixelsize);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     return 0;
 }
 
@@ -290,32 +290,32 @@ int explicit_gridder_invoker(ragridder_plan *gridder_plan, PCS e)
     PCS ypixsize = gridder_plan->pixelsize_y;
     PCS *d_u, *d_v, *d_w;
     CUCPX *d_vis, *d_dirty;
-    checkCudaErrors(cudaMalloc((void **)&d_u, sizeof(PCS) * nrow));
-    checkCudaErrors(cudaMalloc((void **)&d_v, sizeof(PCS) * nrow));
-    checkCudaErrors(cudaMalloc((void **)&d_w, sizeof(PCS) * nrow));
-    checkCudaErrors(cudaMalloc((void **)&d_vis, sizeof(CUCPX) * nrow));
-    checkCudaErrors(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * N1 * N2));
-    checkCudaErrors(cudaMemset(d_dirty, 0, sizeof(CUCPX) * N1 * N2));
+    checkCudaError(cudaMalloc((void **)&d_u, sizeof(PCS) * nrow));
+    checkCudaError(cudaMalloc((void **)&d_v, sizeof(PCS) * nrow));
+    checkCudaError(cudaMalloc((void **)&d_w, sizeof(PCS) * nrow));
+    checkCudaError(cudaMalloc((void **)&d_vis, sizeof(CUCPX) * nrow));
+    checkCudaError(cudaMalloc((void **)&d_dirty, sizeof(CUCPX) * N1 * N2));
+    checkCudaError(cudaMemset(d_dirty, 0, sizeof(CUCPX) * N1 * N2));
 
-    checkCudaErrors(cudaMemcpy(d_u, gridder_plan->kv.u, sizeof(PCS) * nrow, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_v, gridder_plan->kv.v, sizeof(PCS) * nrow, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_w, gridder_plan->kv.w, sizeof(PCS) * nrow, cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_u, gridder_plan->kv.u, sizeof(PCS) * nrow, cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_v, gridder_plan->kv.v, sizeof(PCS) * nrow, cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_w, gridder_plan->kv.w, sizeof(PCS) * nrow, cudaMemcpyHostToDevice));
 
     int blocksize = 512;
     PCS f_over_c;
     for (int i = 0; i < nchan; i++)
     {
-        checkCudaErrors(cudaMemcpy(d_vis, gridder_plan->kv.vis + i * nrow, sizeof(CUCPX) * nrow, cudaMemcpyHostToDevice));
+        checkCudaError(cudaMemcpy(d_vis, gridder_plan->kv.vis + i * nrow, sizeof(CUCPX) * nrow, cudaMemcpyHostToDevice));
         f_over_c = gridder_plan->kv.frequency[i] / SPEEDOFLIGHT;
         explicit_gridder<<<(N1 * N2 - 1) / blocksize + 1, blocksize>>>(N1, N2, nrow, d_u, d_v, d_w, d_vis,
                                                                        d_dirty, f_over_c, xpixsize, ypixsize, pirange); // blocksize can not be 1024
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaError(cudaDeviceSynchronize());
     }
-    checkCudaErrors(cudaMemcpy(gridder_plan->dirty_image, d_dirty, sizeof(CUCPX) * N1 * N2, cudaMemcpyDeviceToHost));
-    checkCudaErrors(cudaFree(d_u));
-    checkCudaErrors(cudaFree(d_v));
-    checkCudaErrors(cudaFree(d_w));
-    checkCudaErrors(cudaFree(d_vis));
-    checkCudaErrors(cudaFree(d_dirty));
+    checkCudaError(cudaMemcpy(gridder_plan->dirty_image, d_dirty, sizeof(CUCPX) * N1 * N2, cudaMemcpyDeviceToHost));
+    checkCudaError(cudaFree(d_u));
+    checkCudaError(cudaFree(d_v));
+    checkCudaError(cudaFree(d_w));
+    checkCudaError(cudaFree(d_vis));
+    checkCudaError(cudaFree(d_dirty));
     return ier;
 }

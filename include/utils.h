@@ -15,13 +15,13 @@
 
 // 0 correct  1 warning 2 error
 
-#define checkCudaErrors(call)                                           \
+#define checkCudaError(call)                                           \
     {                                                                   \
         const cudaError_t error = call;                                 \
         if (error != cudaSuccess)                                       \
         {                                                               \
             printf("CUDA error at %s %d: %s\n", __FILE__, __LINE__,     \
-            cudaGetErrorString(err));                                   \
+            cudaGetErrorString(error));                                   \
             exit(EXIT_FAILURE);                                         \
         }                                                               \
     }

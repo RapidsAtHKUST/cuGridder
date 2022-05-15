@@ -108,10 +108,10 @@ int main(int argc, char *argv[])
 
     CPX *dirty_image = (CPX *)malloc(sizeof(CPX) * nxdirty * nydirty);
 
-    checkCudaErrors(cudaMalloc((void **)&d_u, nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc((void **)&d_v, nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc((void **)&d_w, nrow * sizeof(PCS)));
-    checkCudaErrors(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
+    checkCudaError(cudaMalloc((void **)&d_u, nrow * sizeof(PCS)));
+    checkCudaError(cudaMalloc((void **)&d_v, nrow * sizeof(PCS)));
+    checkCudaError(cudaMalloc((void **)&d_w, nrow * sizeof(PCS)));
+    checkCudaError(cudaMalloc((void **)&d_vis, nrow * sizeof(CUCPX)));
 
     PCS pixelsize = fov * PI / 180 / nxdirty;
     // generating data
@@ -147,10 +147,10 @@ int main(int argc, char *argv[])
 
     // Timing begin ++++
     //data transfer
-    checkCudaErrors(cudaMemcpy(d_u, u, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //u
-    checkCudaErrors(cudaMemcpy(d_v, v, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //v
-    checkCudaErrors(cudaMemcpy(d_w, w, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //w
-    checkCudaErrors(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_u, u, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //u
+    checkCudaError(cudaMemcpy(d_v, v, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //v
+    checkCudaError(cudaMemcpy(d_w, w, nrow * sizeof(PCS), cudaMemcpyHostToDevice)); //w
+    checkCudaError(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice));
 
     /* -----------Step1: Baseline setting--------------
 	skip negative v
@@ -201,11 +201,11 @@ int main(int argc, char *argv[])
         return ier;
     }
     // fk(image) malloc and set
-    checkCudaErrors(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * nydirty * nxdirty));
+    checkCudaError(cudaMalloc((void **)&d_fk, sizeof(CUCPX) * nydirty * nxdirty));
     plan->fk = d_fk;
 
     gridder_plan->dirty_image = dirty_image; //
-    checkCudaErrors(cudaMemcpy(d_fk, dirty_image, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyHostToDevice));
+    checkCudaError(cudaMemcpy(d_fk, dirty_image, sizeof(CUCPX) * nxdirty * nydirty, cudaMemcpyHostToDevice));
 
     // how to use weight flag and frequency
     for (int i = 0; i < nchan; i++)
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
         // 3. * rescale ratio
         // pre_setting(d_u, d_v, d_w, d_vis, plan, gridder_plan);
         // memory transfer (vis belong to this channel and weight)
-        // checkCudaErrors(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice)); //
+        // checkCudaError(cudaMemcpy(d_vis, vis, nrow * sizeof(CUCPX), cudaMemcpyHostToDevice)); //
         // shift to corresponding range
         ier = gridder_execution(plan, gridder_plan);
         if (ier == 1)
@@ -224,8 +224,8 @@ int main(int argc, char *argv[])
             printf("errors in gridder execution\n");
             return ier;
         }
-        checkCudaErrors(cudaMemcpy(gridder_plan->kv.vis, plan->d_c, sizeof(CUCPX) * nrow,
-                                   cudaMemcpyDeviceToHost));
+        checkCudaError(cudaMemcpy(gridder_plan->kv.vis, plan->d_c, sizeof(CUCPX) * nrow,
+                                  cudaMemcpyDeviceToHost));
     }
     printf("exection finished\n");
 #ifdef PRINT

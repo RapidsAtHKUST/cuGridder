@@ -160,7 +160,7 @@ $(DYNAMICLIB): $(CURAFFTOBJS) $(CURAFFTOBJS_64) $(CURAFFTOBJS_32) $(CONTRIBOBJS)
 # ---------------------------------------------------------------
 check:
 	@echo "Building lib, all testers, and running all tests..."
-	$(MAKE) checkconv
+	$(MAKE) checkconv checkfft
 
 
 checkconv: convtest
@@ -169,97 +169,10 @@ checkconv: convtest
 	bin/conv_2d_test 0 5 5
 	@echo "conv 3D.............................................."
 	bin/conv_3d_test 2 12 12 12 800;
-	# @echo "conv 3D.............................................."
-	# bin/conv_3d_test 0 4096 4096 12 16777216;
-# 	@echo "conv 3D.............................................."
-# 	bin/conv_3d_test 4 64 64 64 262144 1e-12 1;
-# 	bin/conv_3d_test 4 64 64 64 262144 1e-12 1;
-# 	bin/conv_3d_test 4 64 64 64 262144 1e-12 1;
-# 	bin/conv_3d_test 4 64 64 64 262144 1e-12 1;
-# 	bin/conv_3d_test 4 64 64 64 262144 1e-12 1;
-# 	@echo "conv 3D.............................................."
-# 	bin/conv_3d_test 4 128 128 128 2097152 1e-12 1;
-# 	bin/conv_3d_test 4 128 128 128 2097152 1e-12 1;
-# 	bin/conv_3d_test 4 128 128 128 2097152 1e-12 1;
-# # bin/conv_3d_test 2 128 128 128 2097152 1e-10 1;
-# 	@echo "conv 3D.............................................."
-# 	bin/conv_3d_test 4 256 256 256 16777216 1e-12 1;
-# 	bin/conv_3d_test 4 256 256 256 16777216 1e-12 1;
-# 	bin/conv_3d_test 4 256 256 256 16777216 1e-12 1;
-	# @echo "conv 3D.............................................."
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-9 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-9 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-9 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-9 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-9 0;
-	# @echo "conv 3D.............................................."
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-10 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-10 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-10 0;
-	# @echo "conv 3D.............................................."
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-11 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-11 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-11 0;
-	# @echo "conv 3D.............................................."
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
-	# @echo "conv 3D.............................................."
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
-	# bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
-# bin/conv_3d_test 1 256 256 128 8388608 1e-10 1;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 256 256 128 8388608 1e-12 1;
-# bin/conv_3d_test 6 256 256 128 8388608 1e-12 1;
-# bin/conv_3d_test 6 256 256 128 8388608 1e-12 1;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 256 256 512 33554432 1e-12 1;
-# bin/conv_3d_test 6 256 256 512 33554432 1e-12 1;
-# bin/conv_3d_test 6 256 256 512 33554432 1e-12 1;
-# bin/conv_3d_test 1 256 256 512 33554432 1e-10 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 1 512 512 512 134217728 1e-9 1;
-# bin/conv_3d_test 1 512 512 512 134217728 1e-9 1;
-# bin/conv_3d_test 1 512 512 512 134217728 1e-9 1;
-# bin/conv_3d_test 1 512 512 512 134217728 1e-9 1;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 4 512 512 512 134217728 1e-10 0;
-# bin/conv_3d_test 4 512 512 512 134217728 1e-10 0;
-# bin/conv_3d_test 4 512 512 512 134217728 1e-10 0;
-# # bin/conv_3d_test 1 512 512 512 134217728 1e-10 0;.."
-# bin/conv_3d_test 2 512 512 512 134217728 1e-12 1;
-	
 	@echo "conv 3D.............................................."
+	bin/conv_3d_test 0 4096 4096 12 16777216;
+	bin/conv_3d_test 6 512 512 512 134217728 1e-12 0;
 	bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 1;
-	bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 1;
-	bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 1;
-# bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 1000000 1e-12 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 2048 2048 12 10000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 10000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 10000000 1e-12 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 2048 2048 12 100000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 100000000 1e-12 0;
-# bin/conv_3d_test 6 2048 2048 12 100000000 1e-12 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 4096 4096 12 1000000 1e-12 0;
-# bin/conv_3d_test 6 4096 4096 12 1000000 1e-12 0;
-# bin/conv_3d_test 6 4096 4096 12 1000000 1e-12 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 4096 4096 12 10000000 1e-12 0;
-# bin/conv_3d_test 6 4096 4096 12 10000000 1e-12 0;
-# bin/conv_3d_test 6 4096 4096 12 10000000 1e-12 0;
-# @echo "conv 3D.............................................."
-# bin/conv_3d_test 6 4096 4096 12 100000000 1e-12 0;
-# bin/conv_3d_test 6 4096 4096 12 100000000 1e-12 0;
-# bin/conv_3d_test 6 4096 4096 12 100000000 1e-12 0;
 
 
 
@@ -269,9 +182,9 @@ checkutils: utiltest
 
 checkwst: w_s_test
 	@echo "W stacking checking..."
-	# bin/w_s_gridder_test 6 1 4096 4096 1000000 10 1 1e-12 0
-	# bin/w_s_gridder_test 0 1 4096 4096 10000000 10 1 1e-12 0
-	# bin/w_s_gridder_test 4 1 2048 2048 100000 10 1 1e-12 1
+	bin/w_s_gridder_test 6 1 4096 4096 1000000 10 1 1e-12 0
+# bin/w_s_gridder_test 0 1 4096 4096 10000000 10 1 1e-12 0
+# bin/w_s_gridder_test 4 1 2048 2048 100000 10 1 1e-12 1
 	bin/w_s_degridder_test 0 1 2048 2048 1000000 10 1 1e-12
 # bin/w_s_test 0 1 5000 5000 50000000 10
 
@@ -296,29 +209,6 @@ checkfft: nufft_test
 	bin/nufft_3d_1_test 512 512 256 67108864 1e-12 0 6
 	bin/nufft_3d_1_test 512 512 256 67108864 1e-12 0 6
 	bin/nufft_3d_1_test 512 512 256 67108864 1e-12 0 6
-# bin/nufft_3d_1_test 256 256 128 8388607 1e-12 0 6
-# bin/nufft_3d_1_test 256 256 512 33554432 1e-10 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-9 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-9 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-9 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-9 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-9 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-10 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-10 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-10 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-11 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-11 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-11 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-12 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-12 0 6
-# bin/nufft_3d_1_test 512 512 256 67108864 1e-12 0 6
-
-# bin/nufft_1d_test 4096 4096 1e-13
-# bin/nufft_2d_1_test 10 10 100 1e-12
-# bin/nufft_2d_2_test 10 10 100 1e-12
-# bin/nufft_2d_2_test 100 100 10000 1e-12
-# bin/nufft_1d_3_1_test
-# bin/nufft_1d_3_2_test
 
 
 checkadjoint: adjointness_test

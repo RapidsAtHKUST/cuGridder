@@ -99,7 +99,7 @@ void part_histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, 
 {
     int blocksize = 256;
     part_histogram_3d_sparse<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, plane, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void histogram_3d_sparse(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
@@ -203,15 +203,15 @@ void final_hive_plane_bin_mapping(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, 
     int blocksize = 256;
     // printf("1111\n");
     final_hive_plane_histo<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], plane, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 
     prefix_scan(histo_count, histo_count, nhive[0] * nhive[1] * hivesize[0] * hivesize[1] * hivesize[2] + 1, 0);
     int total;
-    checkCudaErrors(cudaMemcpy(&total, histo_count + nhive[0] * nhive[1] * hivesize[0] * hivesize[1] * hivesize[2], sizeof(int), cudaMemcpyDeviceToHost));
+    checkCudaError(cudaMemcpy(&total, histo_count + nhive[0] * nhive[1] * hivesize[0] * hivesize[1] * hivesize[2], sizeof(int), cudaMemcpyDeviceToHost));
     // count
     counting_hive_invoker(hive_count, histo_count, nhive[0] * nhive[1] + 1, hivesize[0] * hivesize[1] * hivesize[2], N_v - total);
     final_hive_mapping_gather<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, x_out, y_out, z_out, c_out, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], plane, total, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void histogram_3d_ignore_inbinorder(PCS *x, PCS *y, PCS *z, int *sortidx_hive, int *histo_count, int N_v,
@@ -243,7 +243,7 @@ void histogram_3d_ignore_inbinorder_invoker(PCS *x, PCS *y, PCS *z, int *sortidx
 {
     int blocksize = 256;
     histogram_3d_ignore_inbinorder<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, sortidx_hive, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void mapping_based_gather_3d_ignore_ibo(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
@@ -278,7 +278,7 @@ void mapping_based_gather_3d_ignore_ibo_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c
 {
     int blocksize = 256;
     mapping_based_gather_3d_ignore_ibo<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, x_out, y_out, z_out, c_out, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, nhive[0], nhive[1], nhive[2], hivesize[0], hivesize[1], hivesize[2], pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void part_histogram_3d_cube(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count,
@@ -320,14 +320,14 @@ void histogram_3d_cube_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *hi
 {
     int blocksize = 512;
     part_histogram_3d_cube<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], cube_id, cube_z, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 void histogram_3d_sparse_invoker(PCS *x, PCS *y, PCS *z, int *sortidx_bin, int *histo_count, int N_v, int nf1, int nf2, int nf3, int *hivesize, int *nhive, int pirange)
 {
     int blocksize = 512;
     histogram_3d_sparse<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
@@ -361,7 +361,7 @@ void part_mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS 
 {
     int blocksize = 256;
     part_mapping_based_gather_3d<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, x_out, y_out, z_out, c_out, sortidx_bin, histo_count, se_loc, N_v, nf1, nf2, nf3, plane, init_scan_value, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void part_mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
@@ -408,7 +408,7 @@ void part_mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS 
 {
     int blocksize = 256;
     part_mapping_based_gather_3d<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, x_out, y_out, z_out, c_out, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], cube_id, cube_z, init_scan_value, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void part_mapping_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, int *idx_arr,
@@ -451,7 +451,7 @@ void part_mapping_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, int *idx_arr, int
 {
     int blocksize = 256;
     part_mapping_3d<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, idx_arr, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], cube_id, cube_z, init_scan_value, pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void mapping_based_gather_3d(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_out, PCS *y_out, PCS *z_out, CUCPX *c_out,
@@ -525,7 +525,7 @@ void mapping_based_gather_3d_invoker(PCS *x, PCS *y, PCS *z, CUCPX *c, PCS *x_ou
         mapping_based_gather_3d<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, x_out, y_out, z_out, c_out, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
     if (method == 3 || method == 4)
         mapping_based_gather_3d_replace<<<(N_v - 1) / blocksize + 1, blocksize>>>(x, y, z, c, x_out, y_out, z_out, c_out, sortidx_bin, histo_count, N_v, nf1, nf2, nf3, hivesize[0], hivesize[1], hivesize[2], nhive[0], nhive[1], nhive[2], pirange);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 // real and complex array scaling
@@ -552,14 +552,14 @@ void rescaling_real_invoker(PCS *d_x, PCS scale_ratio, int N)
 {
     int blocksize = 512;
     rescaling_real<<<(N - 1) / blocksize + 1, blocksize>>>(d_x, scale_ratio, N);
-    CHECK(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 void rescaling_complex_invoker(CUCPX *d_x, PCS scale_ratio, int N)
 {
     int blocksize = 512;
     rescaling_complex<<<(N - 1) / blocksize + 1, blocksize>>>(d_x, scale_ratio, N);
-    CHECK(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void shift_and_scale(PCS i_center, PCS o_center, PCS gamma, PCS *d_u, PCS *d_x, int M, int N)
@@ -580,7 +580,7 @@ void shift_and_scale_invoker(PCS i_center, PCS o_center, PCS gamma, PCS *d_u, PC
     // Specified for nu to nu fourier transform
     int blocksize = 512;
     shift_and_scale<<<(max(M, N) - 1) / blocksize + 1, blocksize>>>(i_center, o_center, gamma, d_u, d_x, M, N);
-    CHECK(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
 }
 
 __global__ void transpose(PCS *odata, PCS *idata, int width, int height)
@@ -621,11 +621,11 @@ int matrix_transpose_invoker(PCS *d_arr, int width, int height)
     dim3 block(blocksize, blocksize);
     dim3 grid((height - 1) / blocksize + 1, (width - 1) / blocksize + 1);
     PCS *temp_o;
-    checkCudaErrors(cudaMalloc((void **)&temp_o, sizeof(PCS) * width * height));
+    checkCudaError(cudaMalloc((void **)&temp_o, sizeof(PCS) * width * height));
     transpose<<<grid, block>>>(temp_o, d_arr, width, height);
-    checkCudaErrors(cudaDeviceSynchronize());
-    checkCudaErrors(cudaMemcpy(d_arr, temp_o, sizeof(PCS) * width * height, cudaMemcpyDeviceToDevice));
-    checkCudaErrors(cudaFree(temp_o));
+    checkCudaError(cudaDeviceSynchronize());
+    checkCudaError(cudaMemcpy(d_arr, temp_o, sizeof(PCS) * width * height, cudaMemcpyDeviceToDevice));
+    checkCudaError(cudaFree(temp_o));
     return ier;
 }
 
@@ -644,7 +644,7 @@ int matrix_elementwise_multiply_invoker(CUCPX *a, PCS *b, int N)
     int ier = 0;
     int blocksize = 512;
     matrix_elementwise_multiply<<<(N - 1) / blocksize + 1, blocksize>>>(a, b, N);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     return ier;
 }
 
@@ -663,7 +663,7 @@ int matrix_elementwise_divide_invoker(CUCPX *a, PCS *b, int N)
     int ier = 0;
     int blocksize = 512;
     matrix_elementwise_multiply<<<(N - 1) / blocksize + 1, blocksize>>>(a, b, N);
-    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaError(cudaDeviceSynchronize());
     return ier;
 }
 
