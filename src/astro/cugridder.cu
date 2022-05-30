@@ -341,8 +341,8 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     pointer_v->pirange = 0;
     pointer_v->sign = sign;
     int direction = 1; //vis to image
-    int method = 4;
-    int kerevalmeth = 1;
+    int method = 6;
+    int kerevalmeth = 0;
     //---------STEP1: gridder setting---------------
     ier = gridder_setting(nydirty, nxdirty, method, kerevalmeth, 1, epsilon, direction, sigma, 0, 1, nrow, 1, fov, pointer_v, d_u, d_v, d_w, d_vis, plan, gridder_plan);
     //print the setting result
