@@ -344,7 +344,7 @@ int ms2dirty_exec(int nrow, int nxdirty, int nydirty, PCS fov, PCS freq, PCS *uv
     int method = 6;
     int kerevalmeth = 0;
     //---------STEP1: gridder setting---------------
-    ier = gridder_setting(nydirty, nxdirty, method, kerevalmeth, 1, epsilon, direction, sigma, 0, 1, nrow, 1, fov, pointer_v, d_u, d_v, d_w, d_vis, plan, gridder_plan);
+    ier = gridder_setting(nydirty, nxdirty, method, kerevalmeth, 1, epsilon/10, direction, sigma, 0, 1, nrow, 1, fov, pointer_v, d_u, d_v, d_w, d_vis, plan, gridder_plan);
     //print the setting result
     free(pointer_v);
     if (ier == 1)
