@@ -8,3 +8,4 @@ lib
 lib-static
 *.so
 build
+curig.egg-info

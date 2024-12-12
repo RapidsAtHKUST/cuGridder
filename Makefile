@@ -5,7 +5,7 @@ CXX  = g++
 NVCC = nvcc
 
 #set based on GPU card, sm_60 (Tesla P100) or sm_61 (consumer Pascal) or sm_70 (Tesla V100, Titan V) or sm_80 (A100)
-NVARCH ?= -arch=sm_70 
+NVARCH ?= -arch=sm_80 
 # NVARCH ?= -gencode=arch=compute_70,code=sm_70
 
 
@@ -20,7 +20,7 @@ NVCCFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) -Wno-deprecated-gpu-targets 
 # NVCCFLAGS+= -DTIME
 
 #set your cuda path
-CUDA_ROOT := /usr/local/cuda-11.1/
+CUDA_ROOT := /usr/local/cuda-12.1/
 
 # Common includes
 INC += -I$(CUDA_ROOT)/include -Iinclude/cuda_sample

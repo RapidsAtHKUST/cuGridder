@@ -6,7 +6,6 @@
 #include <thrust/complex.h>
 #include <algorithm>
 //#include <thrust>
-using namespace thrust;
 
 #include "ragridder_plan.h"
 #include "conv_interp_invoker.h"

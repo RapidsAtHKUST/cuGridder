@@ -5,7 +5,6 @@
 #include <thrust/complex.h>
 #include <algorithm>
 //#include <thrust>
-using namespace thrust;
 
 #include "conv_interp_invoker.h"
 #include "cuft.h"

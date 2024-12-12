@@ -50,6 +50,20 @@
 // unif[-1,1):
 #define randm11() (2 * rand01() - (PCS)1.0)
 
+// Macro to control thrust namespace usage
+#if defined(__CUDACC__)
+    #if CUDART_VERSION >= 12000
+        #define USE_THRUST_NAMESPACE 0
+    #else
+        #define USE_THRUST_NAMESPACE 1
+    #endif
+#else
+    #define USE_THRUST_NAMESPACE 0
+#endif
+#if USE_THRUST_NAMESPACE
+    using namespace thrust;
+#endif
+
 struct conv_opts;
 void rescaling_real_invoker(PCS *d_x, PCS scale_ratio, int N);
 void rescaling_complex_invoker(CUCPX *d_x, PCS scale_ratio, int N);
